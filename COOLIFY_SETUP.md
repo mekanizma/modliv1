@@ -84,8 +84,10 @@ SUPABASE_KEY=your_supabase_service_role_key_here
 
 Coolify genelde otomatik ayarlar:
 ```
-Backend Service Port: 8000 (otomatik algılanır)
+Backend Service Port: 3000 (host) → 8000 (container)
 ```
+
+**Not:** Container içinde backend 8000 portunda çalışır, ancak dışarıdan 3000 portuyla erişilir.
 
 #### 4️⃣ Domain Ayarları
 
@@ -263,7 +265,7 @@ docker-compose up -d
 docker-compose logs -f
 
 # Test
-curl http://localhost:8000/health
+curl http://localhost:3000/health
 
 # Durdur
 docker-compose down

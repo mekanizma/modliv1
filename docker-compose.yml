@@ -30,7 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: modli-backend
     ports:
-      - "8000:8000"
+      - "3000:8000"
     environment:
       MONGO_URL: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASS:-changeme}@mongodb:27017
       DB_NAME: ${DB_NAME:-modli_prod}
