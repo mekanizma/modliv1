@@ -239,7 +239,7 @@ export default function HomeScreen() {
                 onPress={() => router.push({ pathname: '/try-on', params: { itemId: item.id } })}
               >
                 <Image
-                  source={{ uri: item.image_base64 }}
+                  source={{ uri: item.thumbnail_url || item.image_url }}
                   style={styles.itemImage}
                 />
                 <Text style={styles.itemName} numberOfLines={1}>

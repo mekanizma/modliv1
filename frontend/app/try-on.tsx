@@ -200,7 +200,7 @@ export default function TryOnScreen() {
       const response = await axios.post(`${BACKEND_URL}/api/try-on`, {
         user_id: user?.id,
         user_image: userImage,
-        clothing_image: selectedItem.image_url || selectedItem.image_base64,
+        clothing_image: selectedItem.image_url,
         clothing_category: selectedItem.category,
         is_free_trial: isFreeTrial,
       });
@@ -228,7 +228,7 @@ export default function TryOnScreen() {
     if (!resultImage || !user || !selectedItem) return;
 
     try {
-      await supabase.from('try_on_results').insert({
+      await axios.post(`${BACKEND_URL}/api/tryon-results`, {
         user_id: user.id,
         wardrobe_item_id: selectedItem.id,
         result_image_base64: resultImage,
@@ -372,7 +372,7 @@ export default function TryOnScreen() {
             </Text>
             <View style={styles.selectedItemCard}>
               <Image 
-                source={{ uri: selectedItem.thumbnail_url || selectedItem.image_url || selectedItem.image_base64 }} 
+                source={{ uri: selectedItem.thumbnail_url || selectedItem.image_url }} 
                 style={styles.selectedItemImage}
                 resizeMode="cover"
               />
@@ -422,7 +422,7 @@ export default function TryOnScreen() {
                   }}
                 >
                   <Image 
-                    source={{ uri: item.thumbnail_url || item.image_url || item.image_base64 }} 
+                    source={{ uri: item.thumbnail_url || item.image_url }} 
                     style={styles.itemImage}
                     resizeMode="cover"
                   />

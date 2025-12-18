@@ -4,8 +4,13 @@ import { StatusBar } from 'expo-status-bar';
 import { LanguageProvider } from '../src/contexts/LanguageContext';
 import { AuthProvider } from '../src/contexts/AuthContext';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, LogBox } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+// Reanimated shared value inline style uyarısını gizle
+LogBox.ignoreLogs([
+  "It looks like you might be using shared value's .value inside reanimated inline style",
+]);
 
 export default function RootLayout() {
   return (

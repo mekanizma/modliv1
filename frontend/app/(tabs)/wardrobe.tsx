@@ -23,9 +23,12 @@ import { WardrobeItem, ClothingCategory, Season } from '../../src/types';
 const categories: { key: ClothingCategory | 'all'; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'all', icon: 'grid-outline' },
   { key: 'tops', icon: 'shirt-outline' },
-  { key: 'bottoms', icon: 'airplane-outline' },
-  { key: 'dresses', icon: 'body-outline' },
-  { key: 'outerwear', icon: 'cloudy-outline' },
+  // Alt giyim için pantolon hissi veren ikon
+  { key: 'bottoms', icon: 'walk-outline' },
+  // Elbiseler için daha feminen bir ikon
+  { key: 'dresses', icon: 'woman-outline' },
+  // Dış giyim için gövde/ceket hissi
+  { key: 'outerwear', icon: 'body-outline' },
   { key: 'shoes', icon: 'footsteps-outline' },
   { key: 'accessories', icon: 'watch-outline' },
 ];
@@ -39,7 +42,8 @@ const seasons: { key: Season | 'all'; label: string }[] = [
 ];
 
 const { width } = Dimensions.get('window');
-const imageSize = (width - 48) / 2;
+// Kartlar arasında yatay boşluk bırakmak için marginleri de hesaba katarak genişlik hesaplıyoruz
+const imageSize = (width - 64) / 2; // 2 * 20 padding + 2 * 4 margin = 48, ekstra 16px boşluk için
 const ITEMS_PER_PAGE = 20;
 
 export default function WardrobeScreen() {
@@ -166,14 +170,12 @@ export default function WardrobeScreen() {
       onLongPress={() => handleDeleteItem(item)}
     >
       <Image
-        source={{ uri: item.thumbnail_url || item.image_url || item.image_base64 }}
+        source={{ uri: item.thumbnail_url || item.image_url }}
         style={styles.itemImage}
-        defaultSource={require('../../assets/images/icon.png')}
         resizeMode="cover"
         // Lazy loading and caching optimizations
         fadeDuration={200}
         progressiveRenderingEnabled={true}
-        loadingIndicatorSource={require('../../assets/images/icon.png')}
       />
       <View style={styles.itemInfo}>
         <Text style={styles.itemName} numberOfLines={1}>
@@ -427,6 +429,7 @@ const styles = StyleSheet.create({
   },
   itemCard: {
     width: imageSize,
+    marginHorizontal: 4, // kartlar arasında yatay boşluk
     backgroundColor: '#1a1a2e',
     borderRadius: 12,
     overflow: 'hidden',

@@ -130,6 +130,12 @@ class WardrobeItemCreate(BaseModel):
     color: Optional[str] = None
 
 
+class TryOnResultCreate(BaseModel):
+    user_id: str
+    wardrobe_item_id: str
+    result_image_base64: str
+
+
 # Routes
 @api_router.get("/")
 async def root():
@@ -385,6 +391,72 @@ async def create_wardrobe_item(item: WardrobeItemCreate):
                 )
 
         return {"success": True}
+
+
+@api_router.post("/tryon-results")
+async def create_tryon_result(payload: TryOnResultCreate):
+    """
+    Save try-on result image to Supabase Storage and record URL in try_on_results table.
+    Frontend sadece URL kullanacak, base64 DB'de tutulmayacak.
+    """
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    try:
+        # Convert base64 to bytes
+        image_bytes = base64_to_bytes(payload.result_image_base64)
+
+        # Use same bucket as wardrobe, farklı klasör altında
+        from supabase import create_client, Client
+
+        supabase_client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{timestamp}_{uuid.uuid4().hex[:8]}_result.jpg"
+        storage_path = f"{payload.user_id}/results/{file_name}"
+
+        upload_res = supabase_client.storage.from_("wardrobe").upload(
+            path=storage_path,
+            file=image_bytes,
+            file_options={"content-type": "image/jpeg"},
+        )
+
+        if getattr(upload_res, "error", None):
+            logger.error(f"Supabase storage upload error: {upload_res.error}")
+            raise HTTPException(status_code=500, detail=str(upload_res.error))
+
+        image_url = supabase_client.storage.from_("wardrobe").get_public_url(
+            storage_path
+        )
+
+        # Insert DB row via REST
+        rest_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/try_on_results"
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            resp = await http_client.post(
+                rest_url,
+                json={
+                    "user_id": payload.user_id,
+                    "wardrobe_item_id": payload.wardrobe_item_id,
+                    "result_image_url": image_url,
+                },
+                headers={
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}",
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal",
+                },
+            )
+
+            if resp.status_code >= 400:
+                logger.error(
+                    f"Supabase REST insert (try_on_results) error: {resp.status_code} - {resp.text}"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Supabase insert failed: {resp.status_code} - {resp.text}",
+                )
+
+        return {"success": True, "result_image_url": image_url}
 
     except HTTPException:
         raise

@@ -27,9 +27,9 @@ const categories: { key: ClothingCategory; icon: keyof typeof Ionicons.glyphMap 
   { key: 'tops', icon: 'shirt-outline' },
   // Alt giyim: pantolon havası veren ikon
   { key: 'bottoms', icon: 'walk-outline' },
-  // Elbise: vücut/elbise silüeti
-  { key: 'dresses', icon: 'body-outline' },
-  // Dış giyim: senin isteğinle yine elbise silüeti
+  // Elbiseler: elbise/feminen silüet
+  { key: 'dresses', icon: 'woman-outline' },
+  // Dış giyim: gövde/ceket hissi
   { key: 'outerwear', icon: 'body-outline' },
   { key: 'shoes', icon: 'footsteps-outline' },
   { key: 'accessories', icon: 'watch-outline' },

@@ -31,7 +31,6 @@ interface TryOnResult {
   user_id: string;
   wardrobe_item_id: string;
   result_image_url: string;  // Supabase Storage URL
-  result_image_base64?: string;  // Deprecated - for backward compatibility
   created_at: string;
 }
 
@@ -146,22 +145,17 @@ export default function GalleryScreen() {
   };
 
   const handleDownload = async () => {
-    if (!selectedImage || !selectedImage.result_image_base64) {
+    if (!selectedImage || !selectedImage.result_image_url) {
       Alert.alert(language === 'en' ? 'Error' : 'Hata', language === 'en' ? 'Image not found' : 'Resim bulunamadı');
       return;
     }
     
     setActionLoading(true);
     try {
-      let base64Data = selectedImage.result_image_base64;
-      if (base64Data.includes('base64,')) {
-        base64Data = base64Data.split('base64,')[1];
-      }
-      
       const filename = `modli_${Date.now()}.jpg`;
       const fileUri = `${FileSystem.cacheDirectory}${filename}`;
 
-      await FileSystem.writeAsStringAsync(fileUri, base64Data, { encoding: 'base64' });
+      await FileSystem.downloadAsync(selectedImage.result_image_url, fileUri);
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
@@ -178,7 +172,7 @@ export default function GalleryScreen() {
   };
 
   const handleShare = async () => {
-    const imageUrl = selectedImage?.result_image_url || selectedImage?.result_image_base64;
+    const imageUrl = selectedImage?.result_image_url;
     if (!selectedImage || !imageUrl) {
       Alert.alert(language === 'en' ? 'Error' : 'Hata', language === 'en' ? 'Image not found' : 'Resim bulunamadı');
       return;
@@ -189,17 +183,8 @@ export default function GalleryScreen() {
       const filename = `modli_share_${Date.now()}.jpg`;
       const fileUri = `${FileSystem.cacheDirectory}${filename}`;
 
-      // If it's a URL, download it first
-      if (imageUrl.startsWith('http')) {
-        await FileSystem.downloadAsync(imageUrl, fileUri);
-      } else {
-        // Legacy: If it's base64
-        let base64Data = imageUrl;
-        if (base64Data.includes('base64,')) {
-          base64Data = base64Data.split('base64,')[1];
-        }
-        await FileSystem.writeAsStringAsync(fileUri, base64Data, { encoding: 'base64' });
-      }
+      // URL'i indir
+      await FileSystem.downloadAsync(imageUrl, fileUri);
 
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
@@ -229,8 +214,8 @@ export default function GalleryScreen() {
             closeModal();
             // Store base image in AsyncStorage for faster navigation
             try {
-              const imageUrl = selectedImage.result_image_url || selectedImage.result_image_base64;
-              await AsyncStorage.setItem('tryOnBaseImage', imageUrl!);
+              const imageUrl = selectedImage.result_image_url;
+              await AsyncStorage.setItem('tryOnBaseImage', imageUrl);
               // Navigate with just a flag instead of huge base64 string
               router.push({
                 pathname: '/try-on',
