@@ -36,7 +36,6 @@ services:
       - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_KEY=${SUPABASE_KEY}
-      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://modli.mekanizma.com,http://localhost:8081}
     depends_on:
       mongodb:
         condition: service_healthy

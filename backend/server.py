@@ -28,11 +28,9 @@ OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY', '')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 
-# CORS origins (production and development)
-ALLOWED_ORIGINS = os.environ.get(
-    'ALLOWED_ORIGINS',
-    'https://modli.mekanizma.com,http://localhost:8081,http://localhost:19006'
-).split(',')
+# CORS - Allow all origins for mobile app compatibility
+# Mobile apps don't send Origin headers, so we allow all
+ALLOWED_ORIGINS = ["*"]
 
 # Configure logging
 logging.basicConfig(
@@ -357,8 +355,8 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=ALLOWED_ORIGINS,  # Configured from environment
+    allow_credentials=False,  # Must be False when allow_origins=["*"]
+    allow_origins=ALLOWED_ORIGINS,  # Allow all origins for mobile apps
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
