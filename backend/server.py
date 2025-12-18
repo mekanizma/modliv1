@@ -120,6 +120,16 @@ class ImageUploadRequest(BaseModel):
     filename: Optional[str] = None
 
 
+class WardrobeItemCreate(BaseModel):
+    user_id: str
+    name: str
+    image_url: str
+    thumbnail_url: str
+    category: str
+    season: Optional[str] = None
+    color: Optional[str] = None
+
+
 # Routes
 @api_router.get("/")
 async def root():
@@ -325,6 +335,47 @@ async def upload_image(request: ImageUploadRequest):
             success=False,
             error=str(e)
         )
+
+
+@api_router.post("/wardrobe-items")
+async def create_wardrobe_item(item: WardrobeItemCreate):
+    """
+    Create wardrobe item in Supabase using service role key.
+    This bypasses client-side RLS sorunlarını ve tüm kayıt akışını backend'e toplar.
+    """
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+
+    try:
+        from supabase import create_client, Client
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+        payload = {
+            "user_id": item.user_id,
+            "name": item.name,
+            "image_url": item.image_url,
+            "thumbnail_url": item.thumbnail_url,
+            "category": item.category,
+        }
+
+        if item.season:
+            payload["season"] = item.season
+        if item.color:
+            payload["color"] = item.color
+
+        response = supabase.table("wardrobe_items").insert(payload).execute()
+
+        if getattr(response, "error", None):
+            logger.error(f"Supabase insert error: {response.error}")
+            raise HTTPException(status_code=500, detail=str(response.error))
+
+        return {"success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Wardrobe item create error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Root health endpoint (for Docker health checks and load balancers)

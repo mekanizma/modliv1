@@ -18,7 +18,6 @@ import { useAuth } from '../src/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
-import { supabase } from '../src/lib/supabase';
 import { ClothingCategory, Season, CLOTHING_COLORS } from '../src/types';
 import axios from 'axios';
 
@@ -26,9 +25,12 @@ const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 const categories: { key: ClothingCategory; icon: keyof typeof Ionicons.glyphMap }[] = [
   { key: 'tops', icon: 'shirt-outline' },
-  { key: 'bottoms', icon: 'airplane-outline' },
+  // Alt giyim: pantolon havası veren ikon
+  { key: 'bottoms', icon: 'walk-outline' },
+  // Elbise: vücut/elbise silüeti
   { key: 'dresses', icon: 'body-outline' },
-  { key: 'outerwear', icon: 'cloudy-outline' },
+  // Dış giyim: senin isteğinle yine elbise silüeti
+  { key: 'outerwear', icon: 'body-outline' },
   { key: 'shoes', icon: 'footsteps-outline' },
   { key: 'accessories', icon: 'watch-outline' },
 ];
@@ -137,22 +139,16 @@ export default function AddItemScreen() {
       const { full_url, thumbnail_url } = uploadResponse.data;
       console.log('✅ Image uploaded:', { full_url, thumbnail_url });
 
-      // Save to database with URLs (not base64)
-      const itemData: any = {
+      // Save to database via backend (service role kullanarak)
+      await axios.post(`${BACKEND_URL}/api/wardrobe-items`, {
         user_id: user.id,
         name,
         image_url: full_url,
         thumbnail_url: thumbnail_url,
         category,
-      };
-      
-      // Add optional fields only if they are selected
-      if (season) itemData.season = season;
-      if (color) itemData.color = color;
-      
-      const { error } = await supabase.from('wardrobe_items').insert(itemData);
-
-      if (error) throw error;
+        season: season || null,
+        color: color || null,
+      });
 
       console.log('✅ Item saved to database');
       router.back();
