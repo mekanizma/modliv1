@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useLanguage } from '../src/contexts/LanguageContext';
@@ -34,11 +35,72 @@ export default function TryOnScreen() {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [baseImage, setBaseImage] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState(0);
+  
+  // Animation refs
+  const spinValue = useRef(new Animated.Value(0)).current;
+  const pulseValue = useRef(new Animated.Value(1)).current;
+  const fadeValue = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     fetchItems();
     loadBaseImage();
   }, []);
+
+  // Start animations when generating
+  useEffect(() => {
+    if (generating) {
+      // Spin animation
+      Animated.loop(
+        Animated.timing(spinValue, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        })
+      ).start();
+
+      // Pulse animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseValue, {
+            toValue: 1.2,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseValue, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      // Message rotation
+      const messageInterval = setInterval(() => {
+        Animated.sequence([
+          Animated.timing(fadeValue, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(fadeValue, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start();
+        
+        setLoadingMessage((prev) => (prev + 1) % 5);
+      }, 3000);
+
+      return () => clearInterval(messageInterval);
+    } else {
+      spinValue.setValue(0);
+      pulseValue.setValue(1);
+      fadeValue.setValue(1);
+      setLoadingMessage(0);
+    }
+  }, [generating]);
 
   useEffect(() => {
     if (itemId && items.length > 0) {
@@ -79,6 +141,25 @@ export default function TryOnScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const getLoadingMessages = () => {
+    const messages = language === 'en' 
+      ? [
+          '✨ Creating your virtual look...',
+          '🎨 Applying AI magic...',
+          '👗 Perfectly fitting the outfit...',
+          '💫 Adding final touches...',
+          '🔮 Almost ready...'
+        ]
+      : [
+          '✨ Görünümünüz oluşturuluyor...',
+          '🎨 Yapay zeka büyüsü uygulanıyor...',
+          '👗 Kıyafet mükemmel şekilde ayarlanıyor...',
+          '💫 Son rötuşlar ekleniyor...',
+          '🔮 Neredeyse hazır...'
+        ];
+    return messages[loadingMessage];
   };
 
   const handleGenerate = async () => {
@@ -193,13 +274,80 @@ export default function TryOnScreen() {
         <View style={styles.previewContainer}>
           {generating ? (
             <View style={styles.generatingContainer}>
-              <ActivityIndicator size="large" color="#6366f1" />
-              <Text style={styles.generatingText}>{t.tryOn.generating}</Text>
-              {baseImage && (
-                <Text style={styles.generatingSubtext}>
-                  {language === 'en' ? 'Adding new layer...' : 'Yeni katman ekleniyor...'}
-                </Text>
-              )}
+              {/* Animated Circles */}
+              <View style={styles.circlesContainer}>
+                <Animated.View
+                  style={[
+                    styles.circle,
+                    styles.circleOuter,
+                    {
+                      transform: [{
+                        rotate: spinValue.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0deg', '360deg']
+                        })
+                      }]
+                    }
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.circle,
+                    styles.circleMiddle,
+                    {
+                      transform: [{
+                        rotate: spinValue.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['360deg', '0deg']
+                        })
+                      }]
+                    }
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.circleInner,
+                    {
+                      transform: [{ scale: pulseValue }]
+                    }
+                  ]}
+                >
+                  <Ionicons name="sparkles" size={40} color="#6366f1" />
+                </Animated.View>
+              </View>
+
+              {/* Animated Loading Text */}
+              <Animated.Text 
+                style={[
+                  styles.generatingText,
+                  { opacity: fadeValue }
+                ]}
+              >
+                {getLoadingMessages()}
+              </Animated.Text>
+              
+              {/* Progress Indicator */}
+              <View style={styles.progressContainer}>
+                <View style={styles.progressBar}>
+                  <Animated.View 
+                    style={[
+                      styles.progressFill,
+                      {
+                        width: spinValue.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['0%', '100%']
+                        })
+                      }
+                    ]} 
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.generatingSubtext}>
+                {language === 'en' 
+                  ? 'This may take 10-30 seconds' 
+                  : 'Bu işlem 10-30 saniye sürebilir'}
+              </Text>
             </View>
           ) : resultImage ? (
             <Image source={{ uri: resultImage }} style={styles.resultImage} />
@@ -408,17 +556,69 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 30,
+  },
+  circlesContainer: {
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 30,
+  },
+  circle: {
+    position: 'absolute',
+    borderRadius: 1000,
+    borderWidth: 2,
+  },
+  circleOuter: {
+    width: 180,
+    height: 180,
+    borderColor: '#6366f1',
+    opacity: 0.2,
+  },
+  circleMiddle: {
+    width: 130,
+    height: 130,
+    borderColor: '#818cf8',
+    opacity: 0.3,
+    borderStyle: 'dashed',
+  },
+  circleInner: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#6366f1' + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   generatingText: {
-    color: '#9ca3af',
-    marginTop: 16,
-    fontSize: 16,
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  progressContainer: {
+    width: '100%',
+    marginTop: 20,
+    marginBottom: 12,
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#6366f1',
+    borderRadius: 2,
   },
   generatingSubtext: {
     color: '#6b7280',
-    marginTop: 8,
     fontSize: 13,
-    fontStyle: 'italic',
+    textAlign: 'center',
   },
   noAvatarContainer: {
     flex: 1,
