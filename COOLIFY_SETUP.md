@@ -30,55 +30,13 @@ TTL: 300
 
 ---
 
-## 🐳 Coolify'da Deployment
+## 🐳 Coolify'da Deployment (Docker Compose ile)
 
-### 1️⃣ MongoDB Service Oluşturma
+### ✅ Önerilen Yöntem: Docker Compose ile Deploy
 
-#### MongoDB Container Deploy
+MongoDB ve Backend'i **birlikte** aynı deployment'ta çalıştırın.
 
-1. **Coolify Dashboard** → `+ New Resource` → `Service`
-2. **Service Type:** `MongoDB`
-3. **Configuration:**
-
-```yaml
-Service Name: modli-mongodb
-Version: 7
-Port: 27017 (internal)
-
-Environment Variables:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-MONGO_INITDB_ROOT_USERNAME=admin
-MONGO_INITDB_ROOT_PASSWORD=your_secure_password_123
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Persistent Storage:
-  /data/db (MongoDB data directory)
-  /data/configdb (MongoDB config)
-
-Network: modli-network (oluşturulacak)
-```
-
-4. **Deploy** butonuna basın
-5. MongoDB hazır olduğunda **Internal Hostname** not alın: `modli-mongodb`
-
-#### MongoDB Test
-
-```bash
-# Coolify Terminal veya SSH
-docker exec -it modli-mongodb mongosh -u admin -p your_secure_password_123
-
-# MongoDB shell'de:
-> show dbs
-> use modli_prod
-> db.test.insertOne({test: "connection"})
-> exit
-```
-
----
-
-### 2️⃣ Backend Application Deploy
-
-#### Application Configuration
+#### 1️⃣ Yeni Application Oluştur
 
 1. **Coolify Dashboard** → `+ New Resource` → `Application`
 
@@ -87,63 +45,110 @@ docker exec -it modli-mongodb mongosh -u admin -p your_secure_password_123
 Repository: https://github.com/mekanizma/modliv1.git
 Branch: main
 Base Directory: /
-Build Pack: Dockerfile
-Dockerfile Location: backend/Dockerfile
 ```
 
-3. **Build Settings:**
+3. **Build Pack Seç:**
 ```
-Application Name: modli-backend
-Build Command: (auto from Dockerfile)
-Start Command: (auto from Dockerfile)
-```
-
-4. **Ports Configuration:**
-```
-Container Port: 8000
-Published Port: 8001 (veya başka boş port)
-Protocol: HTTP
+Build Pack: Docker Compose
+Docker Compose File: docker-compose.yml
 ```
 
-5. **Environment Variables:**
+⚠️ **ÖNEMLİ:** "Docker Compose" seçin, "Dockerfile" DEĞİL!
+
+#### 2️⃣ Environment Variables (GEREKLİ)
+
+Coolify'da aşağıdaki environment variable'ları ekleyin:
 
 ```env
-# MongoDB Connection
-MONGO_URL=mongodb://admin:your_secure_password_123@modli-mongodb:27017
+# MongoDB Configuration (GEREKLİ)
+MONGO_ROOT_USER=admin
+MONGO_ROOT_PASS=SuperSecurePassword123!
 DB_NAME=modli_prod
 
-# API Keys
-FAL_KEY=a0a89116-c4cb-44e6-a338-73c631f770a8:6c791175bb517cccef78ba26fd767c9f
-OPENWEATHER_API_KEY=8eb7f79142dbe8f173e1c81e85853fbc
+# API Keys (GEREKLİ)
+FAL_KEY=your_fal_api_key_here
+OPENWEATHER_API_KEY=your_openweather_api_key_here
 
-# Supabase
+# Supabase Configuration (GEREKLİ)
 SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_KEY=your_supabase_service_role_key
-
-# CORS Configuration
-ALLOWED_ORIGINS=https://modli.mekanizma.com,http://localhost:8081,http://localhost:19006
+SUPABASE_KEY=your_supabase_service_role_key_here
 ```
 
-6. **Network:**
+**Önemli Notlar:**
+- `MONGO_ROOT_PASS`: Güçlü bir şifre kullanın (en az 12 karakter, büyük/küçük harf, sayı, özel karakter)
+- `FAL_KEY`: Virtual try-on için gerekli (fal.ai'dan alın)
+- `OPENWEATHER_API_KEY`: Hava durumu özellikleri için (openweathermap.org'dan alın)
+- `SUPABASE_URL` ve `SUPABASE_KEY`: Image upload için gerekli (supabase.com'dan alın)
+
+#### 3️⃣ Port Ayarları
+
+Coolify genelde otomatik ayarlar:
 ```
-Network: modli-network (MongoDB ile aynı network)
+Backend Service Port: 8000 (otomatik algılanır)
 ```
 
-7. **Deploy Dependencies:**
+#### 4️⃣ Domain Ayarları
+
 ```
-Depends On: modli-mongodb
-Wait for healthy: ✅
+Domain: modli.mekanizma.com
+SSL: ✅ Enable (Let's Encrypt)
+Force HTTPS: ✅ Enable
 ```
 
-8. **Health Check:**
+#### 5️⃣ Deploy
+
 ```
-Health Check URL: /health
-Check Interval: 30s
-Timeout: 10s
-Retries: 3
+Deploy → Start
 ```
 
-9. **Deploy** butonuna basın!
+### Deployment Sonrası:
+✅ MongoDB ve Backend aynı network'te (`modli-network`) çalışır  
+✅ Backend `mongodb:27017` hostname üzerinden MongoDB'ye erişir  
+✅ Health check otomatik çalışır ve başarılı olur  
+✅ Her iki servis de otomatik restart yapar
+
+---
+
+## 🔄 Alternatif: Manuel MongoDB + Backend (Eski Yöntem)
+
+Eğer Docker Compose çalışmazsa:
+
+### 1️⃣ MongoDB Service Oluşturma
+
+1. **Coolify Dashboard** → `+ New Resource` → `Database` → `MongoDB`
+2. **Configuration:**
+
+```yaml
+Service Name: modli-mongodb
+Version: 7
+Port: 27017 (internal)
+
+Environment Variables:
+MONGO_INITDB_ROOT_USERNAME=admin
+MONGO_INITDB_ROOT_PASSWORD=your_secure_password_123
+
+Persistent Storage:
+  /data/db
+```
+
+### 2️⃣ Backend Application Deploy
+
+1. **Coolify Dashboard** → `+ New Resource` → `Application`
+2. **Build Pack:** `Dockerfile`
+3. **Dockerfile Location:** `backend/Dockerfile`
+4. **Environment Variables:**
+
+```env
+MONGO_URL=mongodb://admin:your_secure_password_123@modli-mongodb:27017
+DB_NAME=modli_prod
+FAL_KEY=your_key
+OPENWEATHER_API_KEY=your_key
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_KEY=your_key
+```
+
+5. **Network:** Same as MongoDB
+6. **Depends On:** modli-mongodb
 
 ---
 

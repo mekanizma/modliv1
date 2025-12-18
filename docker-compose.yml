@@ -11,13 +11,13 @@ services:
       - mongo-data:/data/db
       - mongo-config:/data/configdb
     environment:
-      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USER:-admin}
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASS:-changeme}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS:-changeme}
     restart: unless-stopped
     networks:
       - modli-network
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -25,17 +25,20 @@ services:
 
   # Backend API
   backend:
-    build: ./backend
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: modli-backend
     ports:
       - "8000:8000"
     environment:
-      - MONGO_URL=mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASS:-changeme}@mongodb:27017
-      - DB_NAME=${DB_NAME:-modli_prod}
-      - FAL_KEY=${FAL_KEY}
-      - OPENWEATHER_API_KEY=${OPENWEATHER_API_KEY}
-      - SUPABASE_URL=${SUPABASE_URL}
-      - SUPABASE_KEY=${SUPABASE_KEY}
+      MONGO_URL: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASS:-changeme}@mongodb:27017
+      DB_NAME: ${DB_NAME:-modli_prod}
+      FAL_KEY: ${FAL_KEY}
+      OPENWEATHER_API_KEY: ${OPENWEATHER_API_KEY}
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_KEY: ${SUPABASE_KEY}
+      PYTHONUNBUFFERED: "1"
     depends_on:
       mongodb:
         condition: service_healthy
@@ -43,7 +46,7 @@ services:
     networks:
       - modli-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
