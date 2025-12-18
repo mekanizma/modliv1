@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,6 +11,8 @@ import uuid
 from datetime import datetime
 import httpx
 import base64
+from PIL import Image
+import io
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,6 +25,8 @@ db = client[os.environ.get('DB_NAME', 'test_database')]
 # API Keys
 FAL_KEY = os.environ.get('FAL_KEY', '')
 OPENWEATHER_API_KEY = os.environ.get('OPENWEATHER_API_KEY', '')
+SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
+SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 
 # CORS origins (production and development)
 ALLOWED_ORIGINS = os.environ.get(
@@ -42,6 +46,41 @@ app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
+
+
+# Utility Functions
+def create_thumbnail(image_data: bytes, size: tuple = (300, 300)) -> bytes:
+    """Create a thumbnail from image data"""
+    try:
+        image = Image.open(io.BytesIO(image_data))
+        image.thumbnail(size, Image.Resampling.LANCZOS)
+        
+        # Convert to RGB if necessary
+        if image.mode in ('RGBA', 'LA', 'P'):
+            background = Image.new('RGB', image.size, (255, 255, 255))
+            if image.mode == 'P':
+                image = image.convert('RGBA')
+            background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+            image = background
+        
+        output = io.BytesIO()
+        image.save(output, format='JPEG', quality=85, optimize=True)
+        return output.getvalue()
+    except Exception as e:
+        logger.error(f"Error creating thumbnail: {str(e)}")
+        raise
+
+
+def base64_to_bytes(base64_string: str) -> bytes:
+    """Convert base64 string to bytes"""
+    if ',' in base64_string:
+        base64_string = base64_string.split(',')[1]
+    return base64.b64decode(base64_string)
+
+
+def bytes_to_base64(image_bytes: bytes) -> str:
+    """Convert bytes to base64 string"""
+    return f"data:image/jpeg;base64,{base64.b64encode(image_bytes).decode('utf-8')}"
 
 
 # Define Models
@@ -69,6 +108,18 @@ class WeatherRequest(BaseModel):
     latitude: float
     longitude: float
     language: str = "en"
+
+class ImageUploadResponse(BaseModel):
+    success: bool
+    full_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
+    error: Optional[str] = None
+
+class ImageUploadRequest(BaseModel):
+    image_base64: str
+    bucket: str = "wardrobe"  # wardrobe or profiles
+    user_id: str
+    filename: Optional[str] = None
 
 
 # Routes
@@ -217,6 +268,65 @@ async def get_weather(request: WeatherRequest):
     except Exception as e:
         logger.error(f"Weather error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@api_router.post("/upload-image", response_model=ImageUploadResponse)
+async def upload_image(request: ImageUploadRequest):
+    """
+    Upload image to Supabase Storage and create thumbnail
+    Returns URLs for both full and thumbnail images
+    """
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    
+    try:
+        from supabase import create_client, Client
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        
+        # Convert base64 to bytes
+        image_bytes = base64_to_bytes(request.image_base64)
+        
+        # Create thumbnail
+        thumbnail_bytes = create_thumbnail(image_bytes, size=(300, 300))
+        
+        # Generate unique filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = request.filename or f"{timestamp}_{uuid.uuid4().hex[:8]}"
+        full_path = f"{request.user_id}/{filename}_full.jpg"
+        thumb_path = f"{request.user_id}/{filename}_thumb.jpg"
+        
+        # Upload full image
+        full_upload = supabase.storage.from_(request.bucket).upload(
+            path=full_path,
+            file=image_bytes,
+            file_options={"content-type": "image/jpeg"}
+        )
+        
+        # Upload thumbnail
+        thumb_upload = supabase.storage.from_(request.bucket).upload(
+            path=thumb_path,
+            file=thumbnail_bytes,
+            file_options={"content-type": "image/jpeg"}
+        )
+        
+        # Get public URLs
+        full_url = supabase.storage.from_(request.bucket).get_public_url(full_path)
+        thumb_url = supabase.storage.from_(request.bucket).get_public_url(thumb_path)
+        
+        logger.info(f"✅ Image uploaded: {full_path}")
+        
+        return ImageUploadResponse(
+            success=True,
+            full_url=full_url,
+            thumbnail_url=thumb_url
+        )
+        
+    except Exception as e:
+        logger.error(f"Upload error: {str(e)}")
+        return ImageUploadResponse(
+            success=False,
+            error=str(e)
+        )
 
 
 # Include the router in the main app

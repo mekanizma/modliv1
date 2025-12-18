@@ -64,18 +64,9 @@ export default function GalleryScreen() {
   );
 
   const loadFromCache = async () => {
-    try {
-      const cacheKey = `gallery_cache_${user?.id}`;
-      const cached = await AsyncStorage.getItem(cacheKey);
-      if (cached) {
-        const cachedData = JSON.parse(cached);
-        console.log(`⚡ Loaded ${cachedData.length} items from cache`);
-        setResults(cachedData);
-        setInitialLoad(false);
-      }
-    } catch (error) {
-      console.error('Error loading from cache:', error);
-    }
+    // Cache removed to prevent SQLITE_FULL error
+    // Gallery now loads directly from Supabase with thumbnails for fast loading
+    return;
   };
 
   const fetchResults = async (pageNum: number = 0, reset: boolean = false) => {
@@ -106,8 +97,6 @@ export default function GalleryScreen() {
         
         if (reset) {
           setResults(data);
-          // Save first page to cache for instant loading
-          saveToCache(data);
         } else {
           setResults(newResults);
         }
@@ -125,15 +114,8 @@ export default function GalleryScreen() {
     }
   };
 
-  const saveToCache = async (data: TryOnResult[]) => {
-    try {
-      const cacheKey = `gallery_cache_${user?.id}`;
-      await AsyncStorage.setItem(cacheKey, JSON.stringify(data));
-      console.log(`💾 Saved ${data.length} items to cache`);
-    } catch (error) {
-      console.error('Error saving to cache:', error);
-    }
-  };
+  // Cache removed to prevent SQLITE_FULL error
+  // Using thumbnails from Supabase Storage for fast loading
 
   const loadMore = () => {
     if (!loadingMore && hasMore) {
@@ -289,8 +271,6 @@ export default function GalleryScreen() {
                 // Remove from local state
                 const newResults = results.filter(r => r.id !== selectedImage.id);
                 setResults(newResults);
-                // Update cache
-                saveToCache(newResults);
                 closeModal();
                 Alert.alert(language === 'en' ? 'Deleted' : 'Silindi', language === 'en' ? 'Image deleted successfully' : 'Görsel başarıyla silindi');
               }

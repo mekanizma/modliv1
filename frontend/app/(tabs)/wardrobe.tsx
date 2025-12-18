@@ -3,11 +3,13 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
   Image,
   RefreshControl,
   Alert,
+  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useLanguage } from '../../src/contexts/LanguageContext';
@@ -35,6 +37,10 @@ const seasons: { key: Season | 'all'; label: string }[] = [
   { key: 'autumn', label: 'autumn' },
 ];
 
+const { width } = Dimensions.get('window');
+const imageSize = (width - 48) / 2;
+const ITEMS_PER_PAGE = 20;
+
 export default function WardrobeScreen() {
   const router = useRouter();
   const { t, language } = useLanguage();
@@ -45,12 +51,17 @@ export default function WardrobeScreen() {
   const [filteredItems, setFilteredItems] = useState<WardrobeItem[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ClothingCategory | 'all'>('all');
   const [selectedSeason, setSelectedSeason] = useState<Season | 'all'>('all');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed to false for instant display
   const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
-      fetchItems();
+      setPage(0);
+      setHasMore(true);
+      fetchItems(0, true);
     }, [])
   );
 
@@ -58,22 +69,40 @@ export default function WardrobeScreen() {
     filterItems();
   }, [items, selectedCategory, selectedSeason]);
 
-  const fetchItems = async () => {
-    if (!user) return;
+  const fetchItems = async (pageNum: number = 0, reset: boolean = false) => {
+    if (!user || (loadingMore && !reset)) return;
+    
+    if (reset) {
+      setLoading(true);
+    } else {
+      setLoadingMore(true);
+    }
+
     try {
+      const from = pageNum * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      
+      console.log(`📥 Fetching wardrobe page ${pageNum}: items ${from}-${to}`);
+      
       const { data, error } = await supabase
         .from('wardrobe_items')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (!error && data) {
-        setItems(data);
+        const newItems = reset ? data : [...items, ...data];
+        setItems(newItems);
+        setHasMore(data.length === ITEMS_PER_PAGE);
+        console.log(`✅ Loaded ${data.length} wardrobe items, hasMore: ${data.length === ITEMS_PER_PAGE}`);
       }
     } catch (error) {
       console.error('Error fetching items:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
+      setRefreshing(false);
     }
   };
 
@@ -90,10 +119,19 @@ export default function WardrobeScreen() {
     setFilteredItems(filtered);
   };
 
+  const loadMore = () => {
+    if (!loadingMore && hasMore && !loading) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      fetchItems(nextPage, false);
+    }
+  };
+
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchItems();
-    setRefreshing(false);
+    setPage(0);
+    setHasMore(true);
+    await fetchItems(0, true);
   };
 
   const handleDeleteItem = (item: WardrobeItem) => {
@@ -117,6 +155,60 @@ export default function WardrobeScreen() {
           },
         },
       ]
+    );
+  };
+
+  const renderItem = ({ item }: { item: WardrobeItem }) => (
+    <TouchableOpacity
+      style={styles.itemCard}
+      onPress={() => router.push({ pathname: '/try-on', params: { itemId: item.id } })}
+      onLongPress={() => handleDeleteItem(item)}
+    >
+      <Image 
+        source={{ uri: item.thumbnail_url || item.image_base64 }} 
+        style={styles.itemImage}
+        defaultSource={require('../../assets/images/icon.png')}
+      />
+      <View style={styles.itemInfo}>
+        <Text style={styles.itemName} numberOfLines={1}>
+          {item.name}
+        </Text>
+        <View style={styles.itemTags}>
+          {item.color && <View style={[styles.colorDot, { backgroundColor: item.color }]} />}
+          {item.season && (
+            <Text style={styles.itemSeason}>
+              {t.wardrobe[item.season as keyof typeof t.wardrobe]}
+            </Text>
+          )}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+
+  const renderEmpty = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="shirt-outline" size={60} color="#2d2d44" />
+      <Text style={styles.emptyTitle}>{t.wardrobe.empty}</Text>
+      <Text style={styles.emptySubtitle}>{t.wardrobe.addFirst}</Text>
+      <TouchableOpacity
+        style={styles.emptyButton}
+        onPress={() => router.push('/add-item')}
+      >
+        <Ionicons name="add" size={20} color="#fff" />
+        <Text style={styles.emptyButtonText}>{t.wardrobe.addItem}</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  const renderFooter = () => {
+    if (!loadingMore) return null;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator size="small" color="#6366f1" />
+        <Text style={styles.footerText}>
+          {language === 'en' ? 'Loading more...' : 'Daha fazla yükleniyor...'}
+        </Text>
+      </View>
     );
   };
 
@@ -208,52 +300,26 @@ export default function WardrobeScreen() {
       </ScrollView>
 
       {/* Items Grid */}
-      <ScrollView
+      <FlatList
+        data={filteredItems}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        numColumns={2}
+        columnWrapperStyle={styles.row}
         style={styles.itemsContainer}
         contentContainerStyle={styles.itemsGrid}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#6366f1" />
         }
-      >
-        {filteredItems.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Ionicons name="shirt-outline" size={60} color="#2d2d44" />
-            <Text style={styles.emptyTitle}>{t.wardrobe.empty}</Text>
-            <Text style={styles.emptySubtitle}>{t.wardrobe.addFirst}</Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => router.push('/add-item')}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.emptyButtonText}>{t.wardrobe.addItem}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.grid}>
-            {filteredItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.itemCard}
-                onPress={() => router.push({ pathname: '/try-on', params: { itemId: item.id } })}
-                onLongPress={() => handleDeleteItem(item)}
-              >
-                <Image source={{ uri: item.image_base64 }} style={styles.itemImage} />
-                <View style={styles.itemInfo}>
-                  <Text style={styles.itemName} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  <View style={styles.itemTags}>
-                    <View style={[styles.colorDot, { backgroundColor: item.color }]} />
-                    <Text style={styles.itemSeason}>
-                      {t.wardrobe[item.season as keyof typeof t.wardrobe]}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        initialNumToRender={10}
+        windowSize={5}
+      />
     </View>
   );
 }
@@ -344,16 +410,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 100,
   },
+  row: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
   },
   itemCard: {
-    width: '48%',
+    width: imageSize,
     backgroundColor: '#1a1a2e',
     borderRadius: 12,
     overflow: 'hidden',
+    marginBottom: 16,
   },
   itemImage: {
     width: '100%',
@@ -415,5 +486,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  footerLoader: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  footerText: {
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 8,
   },
 });
