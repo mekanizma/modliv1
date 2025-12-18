@@ -341,15 +341,12 @@ async def upload_image(request: ImageUploadRequest):
 async def create_wardrobe_item(item: WardrobeItemCreate):
     """
     Create wardrobe item in Supabase using service role key.
-    This bypasses client-side RLS sorunlarını ve tüm kayıt akışını backend'e toplar.
+    This bypasses client-side RLS issues and centralizes write logic in the backend.
     """
     if not SUPABASE_URL or not SUPABASE_KEY:
         raise HTTPException(status_code=500, detail="Supabase not configured")
 
     try:
-        from supabase import create_client, Client
-        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-
         payload = {
             "user_id": item.user_id,
             "name": item.name,
@@ -363,11 +360,29 @@ async def create_wardrobe_item(item: WardrobeItemCreate):
         if item.color:
             payload["color"] = item.color
 
-        response = supabase.table("wardrobe_items").insert(payload).execute()
+        # Supabase REST API endpoint
+        rest_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/wardrobe_items"
 
-        if getattr(response, "error", None):
-            logger.error(f"Supabase insert error: {response.error}")
-            raise HTTPException(status_code=500, detail=str(response.error))
+        async with httpx.AsyncClient(timeout=30.0) as http_client:
+            resp = await http_client.post(
+                rest_url,
+                json=payload,
+                headers={
+                    "apikey": SUPABASE_KEY,
+                    "Authorization": f"Bearer {SUPABASE_KEY}",
+                    "Content-Type": "application/json",
+                    "Prefer": "return=minimal",
+                },
+            )
+
+            if resp.status_code >= 400:
+                logger.error(
+                    f"Supabase REST insert error: {resp.status_code} - {resp.text}"
+                )
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Supabase insert failed: {resp.status_code} - {resp.text}",
+                )
 
         return {"success": True}
 
