@@ -329,6 +329,29 @@ async def upload_image(request: ImageUploadRequest):
         )
 
 
+# Root health endpoint (for Docker health checks and load balancers)
+@app.get("/health")
+async def health_check():
+    """
+    Root-level health check endpoint.
+    Tests MongoDB connection and returns service status.
+    """
+    try:
+        # Test MongoDB connection
+        await client.admin.command('ping')
+        return {
+            "status": "healthy",
+            "service": "modli-backend",
+            "database": "connected",
+            "timestamp": datetime.utcnow().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "unhealthy", "error": str(e)}
+        )
+
 # Include the router in the main app
 app.include_router(api_router)
 
