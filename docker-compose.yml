@@ -25,12 +25,15 @@ services:
 
   # Backend API
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: modli-backend
-    ports:
-      - "3000:8000"
+    expose:
+      - "8000"
+    labels:
+      - "coolify.managed=true"
+      - "coolify.port=8000"
     environment:
       MONGO_URL: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASS:-changeme}@mongodb:27017
       DB_NAME: ${DB_NAME:-modli_prod}
