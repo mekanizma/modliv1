@@ -499,9 +499,7 @@ async def reset_password_page():
       }}
 
       .lang-toggle {{
-        position: absolute;
-        top: 16px;
-        right: 16px;
+        margin-left: auto;
         padding: 6px 12px;
         border-radius: 8px;
         background: rgba(15, 23, 42, 0.8);
@@ -520,11 +518,11 @@ async def reset_password_page():
 
       .success-message {{
         display: none;
-        padding: 20px;
-        border-radius: 16px;
-        background: rgba(34, 197, 94, 0.15);
-        border: 1px solid rgba(34, 197, 94, 0.3);
-        margin-top: 16px;
+        padding: 24px 20px;
+        border-radius: 20px;
+        background: rgba(34, 197, 94, 0.12);
+        border: 1px solid rgba(34, 197, 94, 0.35);
+        margin-top: 18px;
         text-align: center;
       }}
 
@@ -533,15 +531,17 @@ async def reset_password_page():
       }}
 
       .success-icon {{
-        font-size: 48px;
-        margin-bottom: 12px;
+        font-size: 40px;
+        margin-bottom: 10px;
       }}
 
       .success-title {{
         font-size: 18px;
-        font-weight: 600;
+        font-weight: 700;
         color: #4ade80;
-        margin-bottom: 8px;
+        margin-bottom: 6px;
+        letter-spacing: 0.03em;
+        text-transform: uppercase;
       }}
 
       .success-text {{
@@ -559,13 +559,6 @@ async def reset_password_page():
         .headline {{
           font-size: 20px;
         }}
-
-        .lang-toggle {{
-          top: 12px;
-          right: 12px;
-          padding: 5px 10px;
-          font-size: 11px;
-        }}
       }}
     </style>
   </head>
@@ -579,10 +572,10 @@ async def reset_password_page():
             Akıllı gardırop &amp; sanal deneme
           </div>
         </div>
+        <button class="lang-toggle" id="langToggle" onclick="toggleLanguage()">EN</button>
       </div>
 
       <main class="card" aria-labelledby="headline">
-        <button class="lang-toggle" id="langToggle" onclick="toggleLanguage()">EN</button>
         <div class="card-inner">
           <div class="chip-row">
             <div class="chip">
@@ -737,8 +730,8 @@ async def reset_password_page():
       const translations = {{
         tr: {{
           chipSecure: "Güvenli şifre sıfırlama",
-          title: "Yeni şifreni belirle",
-          subcopy: "E-posta adresine gönderdiğimiz bağlantı üzerinden geldin. Güvenlik için buradan yeni Modli şifreni oluşturabilirsin.",
+          title: "Yeni şifrenizi belirleyin.",
+          subcopy: "E-posta adresinize gönderdiğimiz bağlantı üzerinden buraya ulaştınız. Güvenlik amacıyla, yeni Modli şifrenizi buradan oluşturabilirsiniz.",
           labelPassword: "Yeni şifre",
           labelConfirm: "Şifreyi tekrar yaz",
           passwordPlaceholder: "En az 6 karakter",
@@ -759,13 +752,13 @@ async def reset_password_page():
           errorMismatch: "Şifreler birbiriyle eşleşmiyor.",
           errorUpdateFailed: "Şifre güncellenemedi. Lütfen bağlantıyı tekrar deneyin.",
           errorGeneric: "Bir hata oluştu. Lütfen birkaç dakika sonra tekrar dene.",
-          successTitle: "Teşekkürler!",
-          successText: "Şifren başarıyla güncellendi. Artık Modli uygulamasına yeni şifrenle giriş yapabilirsin.",
+          successTitle: "Teşekkürler",
+          successText: "Şifreniz başarıyla değiştirildi. Uygulamaya geri dönebilirsiniz.",
         }},
         en: {{
           chipSecure: "Secure password reset",
           title: "Set your new password",
-          subcopy: "You've arrived via the link we sent to your email address. For security, you can create your new Modli password here.",
+          subcopy: "You have reached this page via the link we sent to your email address. For security reasons, you can create your new Modli password here.",
           labelPassword: "New password",
           labelConfirm: "Confirm password",
           passwordPlaceholder: "At least 6 characters",
@@ -786,8 +779,8 @@ async def reset_password_page():
           errorMismatch: "Passwords do not match.",
           errorUpdateFailed: "Password could not be updated. Please try the link again.",
           errorGeneric: "An error occurred. Please try again in a few minutes.",
-          successTitle: "Thank you!",
-          successText: "Your password has been successfully updated. You can now sign in to the Modli app with your new password.",
+          successTitle: "Thank you",
+          successText: "Your password has been successfully changed. You can return to the app.",
         }}
       }};
 
