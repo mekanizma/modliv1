@@ -24,7 +24,7 @@ import { supabase } from '../../src/lib/supabase';
 export default function SignInScreen() {
   const router = useRouter();
   const { t, language, setLanguage } = useLanguage();
-  const { signIn, profile, loading: authLoading } = useAuth();
+  const { signIn, signInWithOAuth, profile, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [email, setEmail] = useState('');
@@ -33,6 +33,7 @@ export default function SignInScreen() {
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [resetLoading, setResetLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
 
   // Load saved credentials
   useEffect(() => {
@@ -161,6 +162,28 @@ export default function SignInScreen() {
     }
   };
 
+  const handleOAuthSignIn = async (provider: 'google' | 'apple') => {
+    setOauthLoading(provider);
+    try {
+      const { error } = await signInWithOAuth(provider);
+      
+      if (error) {
+        Alert.alert(
+          language === 'en' ? 'Error' : 'Hata',
+          error.message || (language === 'en' ? `${provider} sign in failed` : `${provider} girişi başarısız`)
+        );
+      }
+      // Başarılı olursa AuthContext'teki onAuthStateChange otomatik olarak yönlendirecek
+    } catch (err: any) {
+      Alert.alert(
+        language === 'en' ? 'Error' : 'Hata',
+        err.message || (language === 'en' ? 'OAuth sign in failed' : 'OAuth girişi başarısız')
+      );
+    } finally {
+      setOauthLoading(null);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -274,13 +297,33 @@ export default function SignInScreen() {
 
         {/* Social Buttons */}
         <View style={styles.socialButtons}>
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-google" size={24} color="#fff" />
-            <Text style={styles.socialButtonText}>{t.auth.google}</Text>
+          <TouchableOpacity 
+            style={[styles.socialButton, oauthLoading === 'google' && styles.socialButtonDisabled]}
+            onPress={() => handleOAuthSignIn('google')}
+            disabled={oauthLoading !== null}
+          >
+            {oauthLoading === 'google' ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={24} color="#fff" />
+                <Text style={styles.socialButtonText}>{t.auth.google}</Text>
+              </>
+            )}
           </TouchableOpacity>
-          <TouchableOpacity style={styles.socialButton}>
-            <Ionicons name="logo-apple" size={24} color="#fff" />
-            <Text style={styles.socialButtonText}>{t.auth.apple}</Text>
+          <TouchableOpacity 
+            style={[styles.socialButton, oauthLoading === 'apple' && styles.socialButtonDisabled]}
+            onPress={() => handleOAuthSignIn('apple')}
+            disabled={oauthLoading !== null}
+          >
+            {oauthLoading === 'apple' ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={24} color="#fff" />
+                <Text style={styles.socialButtonText}>{t.auth.apple}</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -435,6 +478,9 @@ const styles = StyleSheet.create({
     gap: 8,
     borderWidth: 1,
     borderColor: '#2d2d44',
+  },
+  socialButtonDisabled: {
+    opacity: 0.6,
   },
   socialButtonText: {
     color: '#fff',

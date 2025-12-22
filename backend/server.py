@@ -171,6 +171,92 @@ async def root():
     return {"message": "Modli API - Virtual Try-On Service"}
 
 
+@app.get("/auth/callback", response_class=HTMLResponse)
+async def oauth_callback(
+    access_token: str = None,
+    refresh_token: str = None,
+    type: str = None,
+):
+    """
+    OAuth callback endpoint - token'ları alıp uygulamaya deep link ile yönlendirir.
+    Apple Android'de HTTPS redirect URL gerektirdiği için bu endpoint gerekli.
+    """
+    html = f"""
+<!DOCTYPE html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Giriş Yapılıyor • Modli</title>
+    <style>
+      body {{
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0a0a0a;
+        color: #fff;
+        font-family: system-ui, -apple-system, sans-serif;
+      }}
+      .container {{
+        text-align: center;
+        padding: 20px;
+      }}
+      .spinner {{
+        border: 3px solid rgba(99, 102, 241, 0.3);
+        border-top: 3px solid #6366f1;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      }}
+      @keyframes spin {{
+        0% {{ transform: rotate(0deg); }}
+        100% {{ transform: rotate(360deg); }}
+      }}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="spinner"></div>
+      <p>Giriş yapılıyor...</p>
+    </div>
+    <script>
+      (function() {{
+        const urlParams = new URLSearchParams(window.location.search);
+        const hash = window.location.hash.substring(1);
+        const hashParams = new URLSearchParams(hash);
+        
+        const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
+        const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
+        
+        if (accessToken && refreshToken) {{
+          // Deep link'e yönlendir
+          const deepLink = `modli://auth/callback#access_token=${{accessToken}}&refresh_token=${{refreshToken}}&type=oauth`;
+          console.log('Redirecting to:', deepLink);
+          
+          // Önce deep link'i dene
+          window.location.href = deepLink;
+          
+          // Fallback: Eğer deep link çalışmazsa 2 saniye sonra tekrar dene
+          setTimeout(() => {{
+            window.location.href = deepLink;
+          }}, 2000);
+        }} else {{
+          console.error('No tokens found in callback');
+          document.body.innerHTML = '<div class="container"><p style="color: #f97373;">Hata: Token\'lar bulunamadı.</p></div>';
+        }}
+      }})();
+    </script>
+  </body>
+</html>
+    """
+    return HTMLResponse(content=html)
+
+
 @app.get("/reset-password", response_class=HTMLResponse)
 async def reset_password_page():
     """
@@ -536,18 +622,21 @@ async def reset_password_page():
       }}
 
       .success-title {{
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 700;
         color: #4ade80;
-        margin-bottom: 6px;
-        letter-spacing: 0.03em;
+        margin-bottom: 12px;
+        letter-spacing: 0.05em;
         text-transform: uppercase;
       }}
 
       .success-text {{
-        font-size: 14px;
-        color: var(--muted);
-        line-height: 1.5;
+        font-size: 15px;
+        font-weight: 600;
+        color: #e5e7eb;
+        line-height: 1.6;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
       }}
 
       @media (max-width: 480px) {{
@@ -689,9 +778,9 @@ async def reset_password_page():
 
             <div class="success-message" id="successMessage">
               <div class="success-icon">✓</div>
-              <div class="success-title" id="successTitle">Teşekkürler!</div>
+              <div class="success-title" id="successTitle">TEŞEKKÜRLER</div>
               <div class="success-text" id="successText">
-                Şifren başarıyla güncellendi. Artık Modli uygulamasına yeni şifrenle giriş yapabilirsin.
+                ŞİFRENİZ BAŞARI İLE DEĞİŞTİRİLDİ UYGULAMAYA GERİ DÖNEBİLİRSİNİZ
               </div>
             </div>
 
@@ -752,8 +841,8 @@ async def reset_password_page():
           errorMismatch: "Şifreler birbiriyle eşleşmiyor.",
           errorUpdateFailed: "Şifre güncellenemedi. Lütfen bağlantıyı tekrar deneyin.",
           errorGeneric: "Bir hata oluştu. Lütfen birkaç dakika sonra tekrar dene.",
-          successTitle: "Teşekkürler",
-          successText: "Şifreniz başarıyla değiştirildi. Uygulamaya geri dönebilirsiniz.",
+          successTitle: "TEŞEKKÜRLER",
+          successText: "ŞİFRENİZ BAŞARI İLE DEĞİŞTİRİLDİ UYGULAMAYA GERİ DÖNEBİLİRSİNİZ",
         }},
         en: {{
           chipSecure: "Secure password reset",
@@ -779,8 +868,8 @@ async def reset_password_page():
           errorMismatch: "Passwords do not match.",
           errorUpdateFailed: "Password could not be updated. Please try the link again.",
           errorGeneric: "An error occurred. Please try again in a few minutes.",
-          successTitle: "Thank you",
-          successText: "Your password has been successfully changed. You can return to the app.",
+          successTitle: "THANK YOU",
+          successText: "YOUR PASSWORD HAS BEEN SUCCESSFULLY CHANGED. YOU CAN RETURN TO THE APP.",
         }}
       }};
 

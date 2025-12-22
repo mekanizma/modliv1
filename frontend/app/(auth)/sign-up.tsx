@@ -21,7 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 export default function SignUpScreen() {
   const router = useRouter();
   const { t, language } = useLanguage();
-  const { signUp } = useAuth();
+  const { signUp, signInWithOAuth } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [fullName, setFullName] = useState('');
@@ -30,6 +30,7 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<'google' | 'apple' | null>(null);
 
   const handleSignUp = async () => {
     if (!fullName || !email || !password || !confirmPassword) {
@@ -64,6 +65,28 @@ export default function SignUpScreen() {
           : 'Hesap oluşturuldu! Lütfen email\'inizi doğrulayın, ardından giriş yapıp profil kurulumunuzu tamamlayın.',
         [{ text: 'OK', onPress: () => router.replace('/(auth)') }]
       );
+    }
+  };
+
+  const handleOAuthSignIn = async (provider: 'google' | 'apple') => {
+    setOauthLoading(provider);
+    try {
+      const { error } = await signInWithOAuth(provider);
+      
+      if (error) {
+        Alert.alert(
+          language === 'en' ? 'Error' : 'Hata',
+          error.message || (language === 'en' ? `${provider} sign in failed` : `${provider} girişi başarısız`)
+        );
+      }
+      // Başarılı olursa AuthContext'teki onAuthStateChange otomatik olarak yönlendirecek
+    } catch (err: any) {
+      Alert.alert(
+        language === 'en' ? 'Error' : 'Hata',
+        err.message || (language === 'en' ? 'OAuth sign in failed' : 'OAuth girişi başarısız')
+      );
+    } finally {
+      setOauthLoading(null);
     }
   };
 
@@ -169,6 +192,45 @@ export default function SignUpScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Divider */}
+        <View style={styles.divider}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>{t.auth.orContinueWith}</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        {/* Social Buttons */}
+        <View style={styles.socialButtons}>
+          <TouchableOpacity 
+            style={[styles.socialButton, oauthLoading === 'google' && styles.socialButtonDisabled]}
+            onPress={() => handleOAuthSignIn('google')}
+            disabled={oauthLoading !== null}
+          >
+            {oauthLoading === 'google' ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="logo-google" size={24} color="#fff" />
+                <Text style={styles.socialButtonText}>{t.auth.google}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.socialButton, oauthLoading === 'apple' && styles.socialButtonDisabled]}
+            onPress={() => handleOAuthSignIn('apple')}
+            disabled={oauthLoading !== null}
+          >
+            {oauthLoading === 'apple' ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="logo-apple" size={24} color="#fff" />
+                <Text style={styles.socialButtonText}>{t.auth.apple}</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+
         {/* Sign In Link */}
         <View style={styles.signInContainer}>
           <Text style={styles.signInText}>{t.auth.alreadyHaveAccount} </Text>
@@ -257,6 +319,46 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 24,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#2d2d44',
+  },
+  dividerText: {
+    color: '#6b7280',
+    paddingHorizontal: 16,
+    fontSize: 14,
+  },
+  socialButtons: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  socialButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1a1a2e',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: '#2d2d44',
+  },
+  socialButtonDisabled: {
+    opacity: 0.6,
+  },
+  socialButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '500',
   },
   signInContainer: {
     flexDirection: 'row',

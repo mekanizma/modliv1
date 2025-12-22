@@ -9,9 +9,18 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useLanguage } from '../src/contexts/LanguageContext';
 import { ensureDailyOutfitReminderScheduled } from '../src/lib/notifications';
 import * as SplashScreen from 'expo-splash-screen';
+import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
+import { supabase } from '../src/lib/supabase';
 
 // Splash screen'i manuel olarak kontrol et
-SplashScreen.preventAutoHideAsync();
+// Sadece native platformlarda preventAutoHideAsync çağır
+if (Platform.OS !== 'web') {
+  SplashScreen.preventAutoHideAsync().catch((error) => {
+    // Hata durumunda yok say (custom splash zaten var)
+    console.log('Splash screen preventAutoHide error (ignored):', error.message);
+  });
+}
 
 // Reanimated shared value inline style uyarısını gizle
 LogBox.ignoreLogs([
@@ -64,9 +73,91 @@ function AppBootstrap({ onReady }: { onReady: () => void }) {
   const { language } = useLanguage();
 
   useEffect(() => {
+    // Deep link listener - OAuth callback'i yakala
+    const handleDeepLink = async (event: { url: string }) => {
+      console.log('🔗 Deep link received:', event.url);
+      
+      try {
+        let url: URL;
+        try {
+          url = new URL(event.url);
+        } catch {
+          // Deep link formatı (modli://...)
+          const match = event.url.match(/modli:\/\/(.*)/);
+          if (match) {
+            const pathAndQuery = match[1];
+            // Hash varsa query string'e çevir
+            const [path, hash] = pathAndQuery.split('#');
+            if (hash) {
+              url = new URL(`https://modli.mekanizma.com/${path}?${hash}`);
+            } else {
+              url = new URL(`https://modli.mekanizma.com/${pathAndQuery}`);
+            }
+          } else {
+            console.error('❌ Invalid URL format:', event.url);
+            return;
+          }
+        }
+        
+        const hash = url.hash.substring(1);
+        const params = new URLSearchParams(hash || url.search);
+        
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type = params.get('type');
+        
+        // OAuth callback kontrolü
+        if (accessToken && refreshToken) {
+          console.log('🔐 OAuth callback detected, setting session...');
+          
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+          
+          if (sessionError) {
+            console.error('❌ Session set error:', sessionError);
+          } else {
+            console.log('✅ Session set successfully');
+            // Profile'i yükle
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session?.user) {
+              // AuthContext'teki fetchProfile otomatik çağrılacak
+              // onAuthStateChange event'i tetiklenecek
+            }
+          }
+        } else if (type === 'recovery') {
+          // Password recovery callback
+          console.log('🔐 Password recovery callback detected');
+        }
+      } catch (error) {
+        console.error('❌ Deep link parse error:', error);
+      }
+    };
+
+    // İlk açılışta URL'i kontrol et
+    Linking.getInitialURL().then((url) => {
+      if (url) {
+        handleDeepLink({ url });
+      }
+    });
+
+    // Deep link listener'ı ekle
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     // Uygulama hazır olduğunda splash screen'i kapat
     if (!loading) {
-      SplashScreen.hideAsync().catch(() => {});
+      // Native splash screen'i güvenli şekilde kapat
+      SplashScreen.hideAsync().catch((error) => {
+        // Native splash screen hatası varsa yok say (custom splash zaten var)
+        console.log('Splash screen hide error (ignored):', error.message);
+      });
       // Custom splash'i de kapat
       setTimeout(() => {
         onReady();
