@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
-import { requestNotificationPermission } from '../lib/notifications';
+import { registerPushToken, requestNotificationPermission } from '../lib/notifications';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
 import { Platform } from 'react-native';
@@ -40,6 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pushRegistered, setPushRegistered] = useState(false);
 
   useEffect(() => {
     // Timeout mekanizması - 10 saniye sonra loading'i false yap (session yüklenmesi için daha fazla zaman)
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (session?.user) {
         console.log('👤 User found, fetching profile...');
         fetchProfile(session.user.id);
+        setPushRegistered(false);
       } else {
         console.log('👤 No user found, setting loading to false');
         setLoading(false);
@@ -253,7 +255,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchProfile(data.user.id);
 
         // Giriş yapınca bildirim iznini sor
-        await requestNotificationPermission();
+        const permission = await requestNotificationPermission();
+        if (permission) {
+          await registerPushToken(data.user.id);
+          setPushRegistered(true);
+        }
       } else {
         setLoading(false);
       }
@@ -279,6 +285,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
   };
+
+  useEffect(() => {
+    if (user?.id && !pushRegistered) {
+      (async () => {
+        const permission = await requestNotificationPermission();
+        if (permission) {
+          await registerPushToken(user.id);
+          setPushRegistered(true);
+        }
+      })();
+    }
+  }, [user?.id, pushRegistered]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const { data, error } = await supabase.auth.signUp({

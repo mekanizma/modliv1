@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './supabase';
 
 const DAILY_OUTFIT_REMINDER_KEY = 'modli_daily_outfit_reminder_v1';
 const DAILY_OUTFIT_REMINDER_DEBUG_KEY = 'modli_daily_outfit_reminder_debug_v1';
@@ -187,6 +188,28 @@ export async function ensureDailyOutfitReminderScheduled(
     console.warn('Failed to schedule daily outfit reminder', error);
   }
 }
+
+export async function registerPushToken(userId: string) {
+  try {
+    const permission = await requestPermissionsIfNeeded();
+    if (!permission) return;
+
+    const projectId = 'e27cd1bb-7f64-44c3-89ec-1e7b0f9f5842';
+    const { data: token } = await Notifications.getExpoPushTokenAsync({ projectId });
+
+    if (!token) return;
+
+    await supabase.from('push_tokens').upsert({
+      user_id: userId,
+      push_token: token,
+      platform: Platform.OS,
+      updated_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.warn('Push token register failed', error);
+  }
+}
+
 
 
 
