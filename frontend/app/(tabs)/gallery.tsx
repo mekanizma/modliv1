@@ -65,9 +65,23 @@ export default function GalleryScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [initialLoad, setInitialLoad] = useState(true);
   const [bootstrappedFromTryOn, setBootstrappedFromTryOn] = useState(false);
-  const pinchScale = useSharedValue(1);
-  const pinchAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pinchScale.value }],
+
+  // Pinch zoom and pan values
+  const scale = useSharedValue(1);
+  const savedScale = useSharedValue(1);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const focalX = useSharedValue(0);
+  const focalY = useSharedValue(0);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { scale: scale.value },
+    ],
   }));
   
   // Filtreleme state'leri
@@ -300,12 +314,26 @@ export default function GalleryScreen() {
     setSelectedImage(item);
     setFullImageLoaded(false);
     setModalVisible(true);
+    // Reset zoom and pan
+    scale.value = 1;
+    savedScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
   };
 
   const closeModal = () => {
     setModalVisible(false);
     setSelectedImage(null);
     setFullImageLoaded(false);
+    // Reset zoom and pan
+    scale.value = 1;
+    savedScale.value = 1;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
   };
 
   const handleDownload = async () => {
@@ -666,41 +694,75 @@ export default function GalleryScreen() {
 
           {selectedImage && (
             <View style={styles.imageWrapper}>
-              <ScrollView
-                style={styles.scrollContainer}
-                contentContainerStyle={styles.scrollContentContainer}
-                showsHorizontalScrollIndicator={false}
-                showsVerticalScrollIndicator={false}
-                centerContent={true}
-                bouncesZoom={true}
-                scrollEventThrottle={16}
-                maximumZoomScale={1}
-                minimumZoomScale={1}
-              >
-                <GestureDetector
-                  gesture={Gesture.Pinch()
+              <GestureDetector
+                gesture={Gesture.Simultaneous(
+                  Gesture.Pinch()
                     .onUpdate((event) => {
-                      const next = Math.min(Math.max(event.scale, 1), 5);
-                      pinchScale.value = next;
+                      // Calculate new scale with limits
+                      const newScale = savedScale.value * event.scale;
+                      scale.value = Math.min(Math.max(newScale, 1), 5);
+
+                      // Adjust translation based on focal point
+                      const deltaX = (focalX.value - width / 2) * (scale.value - savedScale.value);
+                      const deltaY = (focalY.value - height / 2) * (scale.value - savedScale.value);
+
+                      translateX.value = savedTranslateX.value - deltaX;
+                      translateY.value = savedTranslateY.value - deltaY;
+                    })
+                    .onBegin((event) => {
+                      focalX.value = event.focalX;
+                      focalY.value = event.focalY;
                     })
                     .onEnd(() => {
-                      pinchScale.value = 1;
-                    })}
-                >
-                  <Animated.View style={[styles.fullImageWrapper, pinchAnimatedStyle]}>
-                    <Image 
-                      source={{ uri: selectedImage.result_image_url }} 
-                      style={styles.fullImage} 
-                      contentFit="contain"
-                      onLoad={() => {
-                        setFullImageLoaded(true);
-                      }}
-                      transition={100}
-                      cachePolicy="memory-disk"
-                    />
-                  </Animated.View>
-                </GestureDetector>
-              </ScrollView>
+                      savedScale.value = scale.value;
+                      savedTranslateX.value = translateX.value;
+                      savedTranslateY.value = translateY.value;
+
+                      // Reset if zoomed out too much
+                      if (scale.value <= 1) {
+                        scale.value = 1;
+                        savedScale.value = 1;
+                        translateX.value = 0;
+                        translateY.value = 0;
+                        savedTranslateX.value = 0;
+                        savedTranslateY.value = 0;
+                      }
+                    }),
+                  Gesture.Pan()
+                    .enabled(true)
+                    .onUpdate((event) => {
+                      // Only allow panning when zoomed in
+                      if (scale.value > 1) {
+                        const maxTranslateX = (width * scale.value - width) / 2;
+                        const maxTranslateY = (height * scale.value - height) / 2;
+
+                        const newTranslateX = savedTranslateX.value + event.translationX;
+                        const newTranslateY = savedTranslateY.value + event.translationY;
+
+                        // Clamp values to prevent over-panning
+                        translateX.value = Math.min(Math.max(newTranslateX, -maxTranslateX), maxTranslateX);
+                        translateY.value = Math.min(Math.max(newTranslateY, -maxTranslateY), maxTranslateY);
+                      }
+                    })
+                    .onEnd(() => {
+                      savedTranslateX.value = translateX.value;
+                      savedTranslateY.value = translateY.value;
+                    })
+                )}
+              >
+                <Animated.View style={[styles.fullImageWrapper, animatedStyle]}>
+                  <Image
+                    source={{ uri: selectedImage.result_image_url }}
+                    style={styles.fullImage}
+                    contentFit="contain"
+                    onLoad={() => {
+                      setFullImageLoaded(true);
+                    }}
+                    transition={100}
+                    cachePolicy="memory-disk"
+                  />
+                </Animated.View>
+              </GestureDetector>
             </View>
           )}
 
@@ -784,12 +846,15 @@ const styles = StyleSheet.create({
   footerText: { color: '#9ca3af', fontSize: 13 },
   modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' },
   modalCloseButton: { position: 'absolute', right: 20, zIndex: 10, width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  imageWrapper: { flex: 1, width: width, justifyContent: 'center', alignItems: 'center', position: 'relative' },
-  scrollContainer: { flex: 1, width: width },
-  scrollContentContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  fullImageWrapper: { alignItems: 'center', justifyContent: 'center' },
-  fullImage: { 
-    width: width, 
+  imageWrapper: { flex: 1, width: width, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+  fullImageWrapper: {
+    width: width,
+    height: height,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullImage: {
+    width: width,
     height: height * 0.7,
   },
   modalActions: { position: 'absolute', bottom: 0, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 20, paddingTop: 20, backgroundColor: 'rgba(0,0,0,0.8)' },
