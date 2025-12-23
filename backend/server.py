@@ -234,8 +234,8 @@ async def oauth_callback(
         const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
         
         if (accessToken && refreshToken) {{
-          // Deep link'e yönlendir
-          const deepLink = `modli://auth/callback#access_token=${{accessToken}}&refresh_token=${{refreshToken}}&type=oauth`;
+          // Deep link'e yönlendir (query string ile)
+          const deepLink = `modli://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth`;
           console.log('Redirecting to:', deepLink);
           
           // Önce deep link'i dene

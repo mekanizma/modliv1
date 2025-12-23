@@ -297,14 +297,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithOAuth = async (provider: 'google' | 'apple') => {
     setLoading(true);
     try {
-      // Redirect URL'i oluştur
-      // Android'de hem Apple hem Google için HTTPS callback endpoint kullan
-      // Bu endpoint token'ları alıp deep link'e yönlendirecek
-      const redirectUrl = Platform.select({
-        ios: provider === 'apple' ? 'https://modli.mekanizma.com/auth/callback' : 'modli://',
-        android: 'https://modli.mekanizma.com/auth/callback', // Android'de her ikisi için de HTTPS
-        default: Linking.createURL('/'),
-      });
+      // Tüm platformlarda tek tip HTTPS callback kullan
+      // Backend /auth/callback token'ları alıp modli://auth/callback ile app'e geri yönlendiriyor
+      const redirectUrl = 'https://modli.mekanizma.com/auth/callback';
 
       console.log('🔐 OAuth redirect URL:', redirectUrl, 'Provider:', provider);
 
@@ -326,86 +321,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (data.url) {
         console.log('🌐 Opening OAuth URL:', data.url);
         
-        // Android için özel handling - HTTPS callback endpoint kullanıyoruz
-        if (Platform.OS === 'android') {
-          // Android'de WebBrowser.openBrowserAsync kullan (callback endpoint'e yönlendirecek)
-          // Callback endpoint token'ları alıp modli:// deep link'ine yönlendirecek
-          // Deep link listener callback'i yakalayacak
+        // Tüm platformlarda aynı yöntem: openAuthSessionAsync
+        const result = await WebBrowser.openAuthSessionAsync(
+          data.url,
+          redirectUrl
+        );
+
+        console.log(`📱 OAuth result (${Platform.OS}):`, result.type, result.url);
+
+        if (result.type === 'success' && result.url) {
+          // URL'den token'ları parse et
+          let accessToken: string | null = null;
+          let refreshToken: string | null = null;
+
           try {
-            console.log('📱 Android: Opening OAuth URL, callback will be handled by endpoint...');
-            await WebBrowser.openBrowserAsync(data.url);
+            const url = new URL(result.url);
+            // Hash veya query params'tan token'ları al
+            const hash = url.hash.substring(1); // # işaretini kaldır
+            const params = new URLSearchParams(hash || url.search);
             
-            // Callback endpoint'e yönlendirilecek, oradan deep link'e geçecek
-            // Deep link listener callback'i yakalayacak
-            // Loading'i false yapma, deep link listener session'ı set edecek
-            console.log('📱 Android: Browser opened, waiting for callback endpoint redirect...');
-            return { error: null };
-          } catch (err: any) {
-            console.error('❌ Android OAuth error:', err);
-            setLoading(false);
-            return { error: { message: err.message || 'OAuth işlemi başlatılamadı.' } };
+            accessToken = params.get('access_token');
+            refreshToken = params.get('refresh_token');
+          } catch (parseError) {
+            console.error('URL parse error:', parseError);
+            // Alternatif: regex ile parse et
+            const accessTokenMatch = result.url.match(/access_token=([^&]*)/);
+            const refreshTokenMatch = result.url.match(/refresh_token=([^&]*)/);
+            accessToken = accessTokenMatch ? decodeURIComponent(accessTokenMatch[1]) : null;
+            refreshToken = refreshTokenMatch ? decodeURIComponent(refreshTokenMatch[1]) : null;
           }
-        } else {
-          // iOS için normal flow
-          const result = await WebBrowser.openAuthSessionAsync(
-            data.url,
-            redirectUrl
-          );
 
-          console.log('📱 iOS OAuth result:', result.type, result.url);
+          if (accessToken && refreshToken) {
+            // Session'ı set et
+            const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
 
-          if (result.type === 'success' && result.url) {
-            // URL'den token'ları parse et
-            let accessToken: string | null = null;
-            let refreshToken: string | null = null;
-
-            try {
-              const url = new URL(result.url);
-              // Hash veya query params'tan token'ları al
-              const hash = url.hash.substring(1); // # işaretini kaldır
-              const params = new URLSearchParams(hash || url.search);
-              
-              accessToken = params.get('access_token');
-              refreshToken = params.get('refresh_token');
-            } catch (parseError) {
-              console.error('URL parse error:', parseError);
-              // Alternatif: regex ile parse et
-              const accessTokenMatch = result.url.match(/access_token=([^&]*)/);
-              const refreshTokenMatch = result.url.match(/refresh_token=([^&]*)/);
-              accessToken = accessTokenMatch ? decodeURIComponent(accessTokenMatch[1]) : null;
-              refreshToken = refreshTokenMatch ? decodeURIComponent(refreshTokenMatch[1]) : null;
+            if (sessionError) {
+              setLoading(false);
+              return { error: sessionError };
             }
 
-            if (accessToken && refreshToken) {
-              // Session'ı set et
-              const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-
-              if (sessionError) {
-                setLoading(false);
-                return { error: sessionError };
-              }
-
-              // Profile'i yükle
-              if (sessionData.session?.user) {
-                await fetchProfile(sessionData.session.user.id);
-                await requestNotificationPermission();
-              }
-              setLoading(false);
-              return { error: null };
-            } else {
-              setLoading(false);
-              return { error: { message: 'Token\'lar alınamadı. Lütfen tekrar deneyin.' } };
+            // Profile'i yükle
+            if (sessionData.session?.user) {
+              await fetchProfile(sessionData.session.user.id);
+              await requestNotificationPermission();
             }
-          } else if (result.type === 'cancel') {
             setLoading(false);
-            return { error: { message: 'OAuth işlemi iptal edildi.' } };
+            return { error: null };
           } else {
             setLoading(false);
-            return { error: { message: 'OAuth işlemi tamamlanamadı.' } };
+            return { error: { message: 'Token\'lar alınamadı. Lütfen tekrar deneyin.' } };
           }
+        } else if (result.type === 'cancel') {
+          setLoading(false);
+          return { error: { message: 'OAuth işlemi iptal edildi.' } };
+        } else {
+          // Callback endpoint modli:// deep link ile dönecek; deep link listener yakalayacak
+          console.log('📱 OAuth: waiting for deep link callback...');
+          setLoading(false);
+          return { error: null };
         }
       }
 
