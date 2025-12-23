@@ -1,5 +1,4 @@
 import NotificationForm from './NotificationForm';
-import UserTable from './UserTable';
 import { Stats, UserProfile } from '../types';
 
 type Props = {
@@ -13,11 +12,9 @@ type Props = {
   stats?: Stats;
   statsLoading: boolean;
   statsError: Error | null;
-  onUpdateCredits: (userId: string, credits: number) => void;
   onSendNotification: (title: string, body: string, userId?: string | null) => void;
   onSearchChange: (value: string) => void;
   onPageChange: (page: number) => void;
-  creditUpdating: boolean;
   notificationSending: boolean;
   notificationError: Error | null;
 };
@@ -33,11 +30,9 @@ export default function Dashboard({
   stats,
   statsLoading,
   statsError,
-  onUpdateCredits,
   onSendNotification,
   onSearchChange,
   onPageChange,
-  creditUpdating,
   notificationSending,
   notificationError
 }: Props) {
@@ -96,31 +91,6 @@ export default function Dashboard({
             error={notificationError}
           />
         </div>
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <p className="muted" style={{ margin: 0 }}>
-              Kullanıcılar
-            </p>
-            <h3 style={{ margin: '4px 0 0 0' }}>Kredi yönetimi</h3>
-          </div>
-          {usersLoading ? <span className="muted">Yükleniyor…</span> : null}
-        </div>
-        {usersError ? (
-          <div className="pill danger">Kullanıcılar alınamadı: {usersError.message}</div>
-        ) : (
-          <UserTable
-            users={users}
-            total={totalUsers}
-            page={page}
-            onUpdateCredits={onUpdateCredits}
-            onSearchChange={onSearchChange}
-            onPageChange={onPageChange}
-            updating={creditUpdating}
-          />
-        )}
       </section>
     </div>
   );
