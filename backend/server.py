@@ -1635,23 +1635,18 @@ async def get_all_users(
         page = max(page, 1)
         page_size = max(min(page_size, 100), 1)
         offset = (page - 1) * page_size
+        range_end = offset + page_size - 1
 
         rest_url = f"{SUPABASE_URL.rstrip('/')}/rest/v1/profiles"
 
         params = {
             "select": "*",
-            "limit": page_size,
-            "offset": offset,
             "order": "created_at.desc",
         }
 
         if q:
-            term_raw = q.strip()
-            if term_raw:
-                safe_term = term_raw.replace(",", " ")
-                term = f"%{safe_term}%"
-                # PostgREST OR syntax: or=(col.ilike.term,col.ilike.term,...)
-                params["or"] = f"(email.ilike.{term},full_name.ilike.{term},id.ilike.{term})"
+            term = f"%{q}%"
+            params["or"] = f"email.ilike.{term},full_name.ilike.{term},id.ilike.{term}"
         
         async with httpx.AsyncClient(timeout=30.0) as http_client:
             resp = await http_client.get(
@@ -1662,6 +1657,7 @@ async def get_all_users(
                     "Authorization": f"Bearer {SUPABASE_KEY}",
                     "Content-Type": "application/json",
                     "Prefer": "count=exact",
+                    "Range": f"{offset}-{range_end}",
                 },
             )
             
@@ -1686,9 +1682,7 @@ async def get_all_users(
                     "page_size": page_size,
                 }
             else:
-                error_detail = resp.text[:200] if resp.text else "Unknown error"
-                logger.error(f"Failed to fetch users: {resp.status_code} - {error_detail}")
-                raise HTTPException(status_code=500, detail=f"Failed to fetch users: {error_detail}")
+                raise HTTPException(status_code=500, detail=f"Failed to fetch users: {resp.text}")
                 
     except Exception as e:
         logger.error(f"Admin get users error: {str(e)}")
