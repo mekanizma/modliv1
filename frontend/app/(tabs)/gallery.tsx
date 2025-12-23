@@ -316,12 +316,17 @@ export default function GalleryScreen() {
     
     setActionLoading(true);
     try {
-      // Önce medya kütüphanesi iznini kontrol et ve iste (sadece görseller)
-      let perm = await MediaLibrary.getPermissionsAsync({ mediaTypes: MediaLibrary.MediaTypeOptions.Images });
+      // Önce medya kütüphanesi iznini kontrol et ve iste (sadece görseller, destek yoksa fallback)
+      const mediaTypes = (MediaLibrary as any)?.MediaTypeOptions?.Images;
+      let perm = mediaTypes
+        ? await MediaLibrary.getPermissionsAsync({ mediaTypes })
+        : await MediaLibrary.getPermissionsAsync();
       
       if (!perm.granted) {
         // İzin yoksa izin iste
-        perm = await MediaLibrary.requestPermissionsAsync({ mediaTypes: MediaLibrary.MediaTypeOptions.Images });
+        perm = mediaTypes
+          ? await MediaLibrary.requestPermissionsAsync({ mediaTypes })
+          : await MediaLibrary.requestPermissionsAsync();
         
         if (!perm.granted) {
           // İzin reddedildiyse kullanıcıyı ayarlara yönlendir
