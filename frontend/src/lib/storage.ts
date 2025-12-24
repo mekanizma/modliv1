@@ -23,10 +23,42 @@ export async function uploadImageToStorage(
   try {
     const EXPO_PUBLIC_BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL as string;
 
-    // Get Supabase session token
-    const { data: { session } } = await supabase.auth.getSession();
+    // Get Supabase session token - retry if session is not ready
+    let session = null;
+    let retries = 3;
     
-    if (!session) {
+    while (retries > 0) {
+      const { data, error } = await supabase.auth.getSession();
+      
+      if (error) {
+        console.error('Session error:', error);
+        retries--;
+        if (retries > 0) {
+          // Wait a bit before retrying
+          await new Promise(resolve => setTimeout(resolve, 500));
+          continue;
+        }
+        return {
+          success: false,
+          error: 'Authentication error. Please try logging in again.',
+        };
+      }
+      
+      session = data.session;
+      
+      if (session && session.access_token) {
+        break;
+      }
+      
+      retries--;
+      if (retries > 0) {
+        console.log('Session not ready, retrying...');
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+    
+    if (!session || !session.access_token) {
       return {
         success: false,
         error: 'Authentication required. Please login first.',
@@ -65,9 +97,18 @@ export async function uploadImageToStorage(
     };
   } catch (error: any) {
     console.error('Upload error:', error);
+    
+    // Handle 401 Unauthorized specifically
+    if (error.response?.status === 401) {
+      return {
+        success: false,
+        error: 'Authentication expired. Please try again.',
+      };
+    }
+    
     return {
       success: false,
-      error: error.message || 'Upload failed',
+      error: error.response?.data?.detail || error.message || 'Upload failed',
     };
   }
 }

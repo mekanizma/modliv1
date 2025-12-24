@@ -107,6 +107,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         console.log('🔄 Auth state changed:', event, session ? 'Session exists' : 'No session');
         
+        // YENİ: SIGNED_IN event'inde OAuth callback'i kontrol et
+        if (event === 'SIGNED_IN' && oauthInProgressRef.current) {
+          console.log('✅ OAuth SIGNED_IN detected, clearing loading state');
+          oauthInProgressRef.current = false;
+          setLoading(false);
+          setSession(session);
+          setUser(session?.user ?? null);
+          if (session?.user) {
+            fetchProfile(session.user.id).catch(console.error);
+            requestNotificationPermission().catch(console.error);
+          }
+          return;
+        }
+        
         // INITIAL_SESSION event'i - session'ın ilk yüklendiği zaman
         // Bu durumda session zaten getSession() ile yüklenmiş olabilir
         if (event === 'INITIAL_SESSION') {
@@ -331,11 +345,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     const oauthTimeout = setTimeout(() => {
       if (oauthInProgressRef.current) {
-        console.warn('⏰ OAuth timeout after 60 seconds');
+        console.warn('⏰ OAuth timeout after 10 seconds');
         oauthInProgressRef.current = false;
         setLoading(false);
       }
-    }, 60000);
+    }, 10000); // 60000'den 10000'e düşür
     
     try {
       // Backend HTTPS callback kullan - Google OAuth modli:// native deep link'i desteklemiyor
@@ -435,7 +449,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('📱 OAuth: waiting for deep link callback...');
           console.log('📱 Deep link should be: modli://auth/callback?access_token=...&refresh_token=...');
 
-          // 10 saniye timeout ekle
+          // YENİ: 5 saniye sonra session kontrol et
+          setTimeout(async () => {
+            if (oauthInProgressRef.current) {
+              console.log('📱 Checking session after OAuth...');
+              const { data: { session: currentSession } } = await supabase.auth.getSession();
+              if (currentSession) {
+                console.log('✅ Session found, updating state');
+                oauthInProgressRef.current = false;
+                setLoading(false);
+              }
+            }
+          }, 5000);
+
+          // 10 saniye timeout ekle (fallback)
           setTimeout(() => {
             if (oauthInProgressRef.current) {
               console.warn('⚠️ Deep link timeout - no callback received after 10 seconds');

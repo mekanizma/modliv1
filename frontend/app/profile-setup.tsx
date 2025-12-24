@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { uploadImageToStorage } from '../src/lib/storage';
+import { supabase } from '../src/lib/supabase';
 
 const styleThemes = [
   { id: 'casual', icon: 'shirt-outline', color: '#22c55e' },
@@ -131,6 +132,21 @@ export default function ProfileSetupScreen() {
 
     setLoading(true);
     try {
+      // Ensure session is ready before proceeding
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error('Session error:', sessionError);
+        Alert.alert(
+          language === 'en' ? 'Authentication Error' : 'Kimlik Doğrulama Hatası',
+          language === 'en' 
+            ? 'Your session has expired. Please try logging in again.'
+            : 'Oturumunuzun süresi doldu. Lütfen tekrar giriş yapın.'
+        );
+        setLoading(false);
+        return;
+      }
+
       let avatarUrl: string | undefined = undefined;
 
       if (avatarUri) {
@@ -142,7 +158,22 @@ export default function ProfileSetupScreen() {
         );
 
         if (!uploadResult.success || !uploadResult.fullUrl) {
-          throw new Error(uploadResult.error || 'Avatar upload failed');
+          const errorMessage = uploadResult.error || 'Avatar upload failed';
+          console.error('Upload error:', errorMessage);
+          
+          // Show user-friendly error message
+          Alert.alert(
+            language === 'en' ? 'Upload Failed' : 'Yükleme Başarısız',
+            language === 'en'
+              ? errorMessage.includes('Authentication') || errorMessage.includes('expired')
+                ? 'Your session has expired. Please try again.'
+                : 'Failed to upload your photo. Please try again.'
+              : errorMessage.includes('Authentication') || errorMessage.includes('expired')
+                ? 'Oturumunuzun süresi doldu. Lütfen tekrar deneyin.'
+                : 'Fotoğrafınız yüklenemedi. Lütfen tekrar deneyin.'
+          );
+          setLoading(false);
+          return;
         }
 
         avatarUrl = uploadResult.fullUrl;
