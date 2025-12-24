@@ -1363,6 +1363,50 @@ async def get_status_checks():
     return [StatusCheck(**status_check) for status_check in status_checks]
 
 
+# Authentication Functions
+async def verify_supabase_user(authorization: str = Header(None)):
+    """
+    Verify Supabase JWT token and return user info.
+    Raises HTTPException if token is invalid.
+    """
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Invalid authorization format")
+    
+    token = authorization.replace("Bearer ", "")
+    
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        raise HTTPException(status_code=500, detail="Supabase authentication not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{SUPABASE_URL.rstrip('/')}/auth/v1/user",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "apikey": SUPABASE_ANON_KEY
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.warning(f"Invalid Supabase token: {response.status_code}")
+                raise HTTPException(status_code=401, detail="Invalid or expired token")
+            
+            user_data = response.json()
+            return user_data
+            
+    except httpx.RequestError as e:
+        logger.error(f"Supabase auth error: {str(e)}")
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected auth error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication error")
+
+
 async def try_on_with_fal(user_image: str, clothing_image: str, http_client: httpx.AsyncClient, user_id: Optional[str] = None) -> TryOnResponse:
     """Use fal.ai for all users"""
     try:
@@ -1775,49 +1819,6 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Hash a password"""
     return pwd_context.hash(password)
-
-async def verify_supabase_user(authorization: str = Header(None)):
-    """
-    Verify Supabase JWT token and return user info.
-    Raises HTTPException if token is invalid.
-    """
-    if not authorization:
-        raise HTTPException(status_code=401, detail="Authorization header missing")
-    
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Invalid authorization format")
-    
-    token = authorization.replace("Bearer ", "")
-    
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        raise HTTPException(status_code=500, detail="Supabase authentication not configured")
-    
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{SUPABASE_URL.rstrip('/')}/auth/v1/user",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "apikey": SUPABASE_ANON_KEY
-                }
-            )
-            
-            if response.status_code != 200:
-                logger.warning(f"Invalid Supabase token: {response.status_code}")
-                raise HTTPException(status_code=401, detail="Invalid or expired token")
-            
-            user_data = response.json()
-            return user_data
-            
-    except httpx.RequestError as e:
-        logger.error(f"Supabase auth error: {str(e)}")
-        raise HTTPException(status_code=503, detail="Authentication service unavailable")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Unexpected auth error: {str(e)}")
-        raise HTTPException(status_code=500, detail="Authentication error")
-
 
 async def verify_admin_session(x_admin_token: str = Header(None, alias="X-Admin-Token")):
     """Verify admin session token - Geçici olarak devre dışı"""
