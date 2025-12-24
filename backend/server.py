@@ -1,5 +1,5 @@
 from fastapi import FastAPI, APIRouter, HTTPException, UploadFile, File, Form, Depends, Header
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -429,101 +429,175 @@ async def root():
     return {"message": "Modli API - Virtual Try-On Service"}
 
 
-@app.get("/auth/callback", response_class=HTMLResponse)
+@app.get("/auth/callback")
 async def oauth_callback(
     access_token: str = None,
     refresh_token: str = None,
     type: str = None,
+    error: str = None,
+    error_description: str = None,
 ):
     """
     OAuth callback endpoint - token'ları alıp uygulamaya deep link ile yönlendirir.
-    Apple Android'de HTTPS redirect URL gerektirdiği için bu endpoint gerekli.
+    HTTP 302 redirect kullanarak direkt deep link'e yönlendirme yapar.
     """
+    # Hata varsa hata sayfası göster
+    if error:
+        error_msg = error_description or error
+        logger.error(f"OAuth error: {error_msg}")
+        html = f"""
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Giriş Hatası • Modli</title>
+    <style>
+        body {{
+            margin: 0;
+            padding: 20px;
+            background: #0a0a0a;
+            color: #fff;
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }}
+        .error {{
+            text-align: center;
+            max-width: 400px;
+        }}
+        .error h1 {{
+            color: #f97373;
+            font-size: 24px;
+            margin-bottom: 16px;
+        }}
+        .error p {{
+            color: #9ca3af;
+            line-height: 1.6;
+        }}
+    </style>
+</head>
+<body>
+    <div class="error">
+        <h1>Giriş Hatası</h1>
+        <p>{error_msg}</p>
+        <p>Lütfen uygulamaya dönüp tekrar deneyin.</p>
+    </div>
+</body>
+</html>
+        """
+        return HTMLResponse(content=html, status_code=400)
+    
+    # Token'lar varsa deep link'e yönlendir
+    if access_token and refresh_token:
+        logger.info(f"OAuth callback successful - redirecting to app")
+        
+        # Deep link URL oluştur
+        deep_link = f"modli://auth/callback?access_token={access_token}&refresh_token={refresh_token}&type=oauth"
+        
+        # HTTP 302 redirect ile deep link'e yönlendir
+        # Mobil işletim sistemleri bu redirect'i yakalayıp uygulamayı açacak
+        return RedirectResponse(url=deep_link, status_code=302)
+    
+    # Token yoksa fallback HTML sayfası
+    # Bu durumda token'lar fragment (#) ile gelmiş olabilir
+    # Fragment sunucu tarafında görünmez, JavaScript ile handle edilmeli
     html = f"""
 <!DOCTYPE html>
 <html lang="tr">
-  <head>
+<head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Giriş Yapılıyor • Modli</title>
     <style>
-      body {{
-        margin: 0;
-        padding: 0;
-        height: 100vh;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: #0a0a0a;
-        color: #fff;
-        font-family: system-ui, -apple-system, sans-serif;
-      }}
-      .container {{
-        text-align: center;
-        padding: 20px;
-      }}
-      .spinner {{
-        border: 3px solid rgba(99, 102, 241, 0.3);
-        border-top: 3px solid #6366f1;
-        border-radius: 50%;
-        width: 40px;
-        height: 40px;
-        animation: spin 1s linear infinite;
-        margin: 0 auto 20px;
-      }}
-      @keyframes spin {{
-        0% {{ transform: rotate(0deg); }}
-        100% {{ transform: rotate(360deg); }}
-      }}
+        body {{
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #0a0a0a;
+            color: #fff;
+            font-family: system-ui, -apple-system, sans-serif;
+        }}
+        .container {{
+            text-align: center;
+            padding: 20px;
+        }}
+        .spinner {{
+            border: 3px solid rgba(99, 102, 241, 0.3);
+            border-top: 3px solid #6366f1;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }}
+        @keyframes spin {{
+            0% {{ transform: rotate(0deg); }}
+            100% {{ transform: rotate(360deg); }}
+        }}
+        .error {{
+            display: none;
+            color: #f97373;
+            margin-top: 20px;
+        }}
     </style>
-  </head>
-  <body>
+</head>
+<body>
     <div class="container">
-      <div class="spinner"></div>
-      <p>Giriş yapılıyor...</p>
+        <div class="spinner"></div>
+        <p id="message">Giriş yapılıyor...</p>
+        <p class="error" id="error"></p>
     </div>
     <script>
-      (function() {{
-        const urlParams = new URLSearchParams(window.location.search);
-        const hash = window.location.hash.substring(1);
-        const hashParams = new URLSearchParams(hash);
-        
-        const accessToken = urlParams.get('access_token') || hashParams.get('access_token');
-        const refreshToken = urlParams.get('refresh_token') || hashParams.get('refresh_token');
-        
-        if (accessToken && refreshToken) {{
-          // Deep link'e yönlendir (query string ile)
-          const deepLink = `modli://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth`;
-          console.log('Redirecting to:', deepLink);
-          
-          // Android için daha güvenilir yöntem: window.location.replace kullan
-          // Ayrıca intent:// fallback ekle (Android için)
-          try {{
-            // Önce modli:// deep link'i dene
-            window.location.replace(deepLink);
+        (function() {{
+            console.log('OAuth callback page loaded');
+            console.log('URL:', window.location.href);
+            console.log('Hash:', window.location.hash);
             
-            // Android fallback: intent:// kullan
-            setTimeout(() => {{
-              const intentLink = `intent://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth#Intent;scheme=modli;package=com.mekanizma.modli;end`;
-              window.location.replace(intentLink);
-            }}, 500);
+            // Fragment (#) içindeki token'ları kontrol et
+            const hash = window.location.hash.substring(1);
+            if (!hash) {{
+                console.error('No hash fragment found');
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Token\\'lar bulunamadı. Lütfen tekrar deneyin.';
+                document.getElementById('message').style.display = 'none';
+                return;
+            }}
             
-            // Son fallback: window.location.href
-            setTimeout(() => {{
-              window.location.href = deepLink;
-            }}, 1000);
-          }} catch (e) {{
-            console.error('Deep link redirect error:', e);
-            // Son çare: window.location.href
-            window.location.href = deepLink;
-          }}
-        }} else {{
-          console.error('No tokens found in callback');
-          document.body.innerHTML = '<div class="container"><p style="color: #f97373;">Hata: Token\'lar bulunamadı.</p></div>';
-        }}
-      }})();
+            const hashParams = new URLSearchParams(hash);
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+            
+            console.log('Access token:', accessToken ? 'found' : 'missing');
+            console.log('Refresh token:', refreshToken ? 'found' : 'missing');
+            
+            if (accessToken && refreshToken) {{
+                const deepLink = `modli://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth`;
+                console.log('Redirecting to:', deepLink);
+                
+                document.getElementById('message').textContent = 'Uygulamaya yönlendiriliyor...';
+                
+                // Deep link'e yönlendir
+                window.location.href = deepLink;
+                
+                // 2 saniye sonra kontrol et
+                setTimeout(() => {{
+                    document.getElementById('message').textContent = 'Uygulama açılmadıysa lütfen manuel olarak açın.';
+                }}, 2000);
+            }} else {{
+                console.error('Tokens not found in hash');
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = 'Token\\'lar bulunamadı. Lütfen tekrar deneyin.';
+                document.getElementById('message').style.display = 'none';
+            }}
+        }})();
     </script>
-  </body>
+</body>
 </html>
     """
     return HTMLResponse(content=html)
