@@ -24,7 +24,7 @@ import { supabase } from '../../src/lib/supabase';
 export default function SignInScreen() {
   const router = useRouter();
   const { t, language, setLanguage } = useLanguage();
-  const { signIn, signInWithOAuth, profile, loading: authLoading } = useAuth();
+  const { signIn, signInWithOAuth, profile, user, loading: authLoading } = useAuth();
   const insets = useSafeAreaInsets();
   
   const [email, setEmail] = useState('');
@@ -40,22 +40,27 @@ export default function SignInScreen() {
     loadSavedCredentials();
   }, []);
 
-  // Navigate after successful login when profile is loaded
+  // Navigate after successful login - works for both email/password AND OAuth
   useEffect(() => {
-    if (loading && !authLoading && profile) {
-      console.log('🚀 Profile loaded after sign in, checking profile status...');
+    // AuthContext loading tamamlandı, user ve profile var
+    if (!authLoading && user && profile) {
+      console.log('🚀 User and profile loaded, navigating...');
+      console.log('🚀 Profile onboarding status:', profile.onboarding_completed);
+      
+      // Local loading state'lerini temizle
       setLoading(false);
+      setOauthLoading(null);
       
       // Navigate based on onboarding status
       if (profile.onboarding_completed === false) {
         console.log('👤 Profile incomplete → Going to profile setup');
-        setTimeout(() => router.replace('/profile-setup'), 100);
+        router.replace('/profile-setup');
       } else {
         console.log('✅ Profile complete → Going to main app');
-        setTimeout(() => router.replace('/(tabs)'), 100);
+        router.replace('/(tabs)');
       }
     }
-  }, [profile, authLoading, loading]);
+  }, [user, profile, authLoading]);
 
   const loadSavedCredentials = async () => {
     try {
@@ -165,23 +170,37 @@ export default function SignInScreen() {
   const handleOAuthSignIn = async (provider: 'google') => {
     setOauthLoading(provider);
     try {
+      console.log(`🔐 Starting ${provider} OAuth sign in...`);
       const { error } = await signInWithOAuth(provider);
       
       if (error) {
+        console.error(`❌ ${provider} OAuth error:`, error);
         Alert.alert(
           language === 'en' ? 'Error' : 'Hata',
-          error.message || (language === 'en' ? `${provider} sign in failed` : `${provider} girişi başarısız`)
+          error.message || (language === 'en' 
+            ? `${provider} sign in failed` 
+            : `${provider} girişi başarısız`)
         );
+        setOauthLoading(null); // Hata durumunda loading'i temizle
       }
-      // Başarılı olursa AuthContext'teki onAuthStateChange otomatik olarak yönlendirecek
+      // Başarılı olursa AuthContext profile fetch edecek ve yukarıdaki useEffect navigation yapacak
+      // setOauthLoading(null) useEffect içinde yapılacak
     } catch (err: any) {
+      console.error(`❌ ${provider} OAuth exception:`, err);
       Alert.alert(
         language === 'en' ? 'Error' : 'Hata',
-        err.message || (language === 'en' ? 'OAuth sign in failed' : 'OAuth girişi başarısız')
+        err.message || (language === 'en' 
+          ? 'OAuth sign in failed' 
+          : 'OAuth girişi başarısız')
       );
-    } finally {
-      setOauthLoading(null);
+      setOauthLoading(null); // Hata durumunda loading'i temizle
     }
+  };
+
+  // Test amaçlı onboarding'e geri dön
+  const handleBackToOnboarding = async () => {
+    await AsyncStorage.removeItem('hasSeenOnboarding');
+    router.replace('/(onboarding)');
   };
 
   return (
@@ -196,13 +215,26 @@ export default function SignInScreen() {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Language Toggle */}
-        <TouchableOpacity
-          style={styles.langButton}
-          onPress={() => setLanguage(language === 'en' ? 'tr' : 'en')}
-        >
-          <Text style={styles.langText}>{language === 'en' ? 'TR' : 'EN'}</Text>
-        </TouchableOpacity>
+        {/* Test: Back to Onboarding Button */}
+        <View style={styles.testHeader}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackToOnboarding}
+          >
+            <Ionicons name="arrow-back" size={20} color="#6366f1" />
+            <Text style={styles.backButtonText}>
+              {language === 'en' ? 'Back to Onboarding (Test)' : 'Onboarding\'e Dön (Test)'}
+            </Text>
+          </TouchableOpacity>
+          
+          {/* Language Toggle */}
+          <TouchableOpacity
+            style={styles.langButton}
+            onPress={() => setLanguage(language === 'en' ? 'tr' : 'en')}
+          >
+            <Text style={styles.langText}>{language === 'en' ? 'TR' : 'EN'}</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Header */}
         <View style={styles.header}>
@@ -336,8 +368,29 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
   },
+  testHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#1a1a2e',
+    borderWidth: 1,
+    borderColor: '#6366f1',
+    gap: 6,
+  },
+  backButtonText: {
+    color: '#6366f1',
+    fontSize: 12,
+    fontWeight: '500',
+  },
   langButton: {
-    alignSelf: 'flex-end',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,

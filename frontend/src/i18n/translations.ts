@@ -3,20 +3,18 @@ export const translations = {
     // Onboarding
     onboarding: {
       welcome: 'Welcome to Modli',
-      slide1Title: 'Virtual Try-On',
-      slide1Desc:
-        'Watch your style transform instantly. Pick a photo, choose an outfit, and see it on you in seconds.',
+      slide1Title: 'Pick a model photo to start',
+      slide1Desc: 'try the magic with one of our sample images',
       slide1Tagline: 'Simple & Intuitive',
-      slide2Title: 'AI Editing',
-      slide2Desc:
-        'Discover limitless transformation options. Get ultra-realistic, professional results for every change.',
+      slide2Title: 'Pick a clothing item',
+      slide2Desc: 'Pick something to try on',
       slide2Tagline: 'Ultra-Realistic Results',
-      slide3Title: 'Smart Wardrobe & Suggestions',
-      slide3Desc:
-        'Organize your digital wardrobe and get personalized outfit ideas based on the weather and your style.',
+      slide3Title: "Here's your AI try-on",
+      slide3Desc: '',
       slide3Tagline: 'Always Ready to Wear',
-      getStarted: 'Get Started',
+      getStarted: "Let's Go",
       next: 'Next',
+      tryOn: 'Try On',
       skip: 'Skip',
     },
     // Auth
@@ -95,6 +93,7 @@ export const translations = {
       outerwear: 'Outerwear',
       shoes: 'Shoes',
       accessories: 'Accessories',
+      underwear: 'Underwear',
       summer: 'Summer',
       winter: 'Winter',
       spring: 'Spring',
@@ -181,20 +180,18 @@ export const translations = {
     // Onboarding
     onboarding: {
       welcome: "Modli'ye Hoş Geldiniz",
-      slide1Title: 'Sanal Deneme',
-      slide1Desc:
-        'Stilinizin anında dönüşümünü izleyin. Bir fotoğraf seçin, kıyafet seçin ve saniyeler içinde üzerinizde görün.',
+      slide1Title: 'Başlamak için bir model fotoğrafı seçin',
+      slide1Desc: 'örnek görsellerimizden biriyle büyüyü deneyin',
       slide1Tagline: 'Basit ve Sezgisel',
-      slide2Title: 'Yapay Zeka Düzenleme',
-      slide2Desc:
-        'Sınırsız dönüşüm imkanlarını keşfedin. Her dönüşüm için ultra-gerçekçi, profesyonel sonuçlar alın.',
+      slide2Title: 'Bir kıyafet seçin',
+      slide2Desc: 'Denemek için bir şey seçin',
       slide2Tagline: 'Ultra-Gerçekçi Sonuçlar',
-      slide3Title: 'Akıllı Gardırop ve Öneriler',
-      slide3Desc:
-        'Dijital gardrobunu düzenle, hava durumuna ve stiline göre kişiselleştirilmiş kombin önerileri al.',
+      slide3Title: 'İşte AI deneme sonucunuz',
+      slide3Desc: '',
       slide3Tagline: 'Her Zaman Hazırsın',
-      getStarted: 'Başla',
+      getStarted: 'Hadi Başlayalım',
       next: 'İleri',
+      tryOn: 'Dene',
       skip: 'Atla',
     },
     // Auth
@@ -273,6 +270,7 @@ export const translations = {
       outerwear: 'Dış Giyim',
       shoes: 'Ayakkabılar',
       accessories: 'Aksesuarlar',
+      underwear: 'İç Giyim',
       summer: 'Yazlık',
       winter: 'Kışlık',
       spring: 'Bahar',

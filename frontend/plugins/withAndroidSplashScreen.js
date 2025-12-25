@@ -63,7 +63,8 @@ const withAndroidSplashScreen = (config) => {
         const drawableContent = `<?xml version="1.0" encoding="utf-8"?>
 <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
     android:src="@drawable/modli_logo"
-    android:gravity="center" />`;
+    android:gravity="center"
+    android:tileMode="disabled" />`;
 
         const drawablePath = path.join(drawableDir, 'splashscreen_logo.xml');
         
@@ -132,7 +133,8 @@ const withAndroidSplashScreen = (config) => {
         const drawableContent = `<?xml version="1.0" encoding="utf-8"?>
 <bitmap xmlns:android="http://schemas.android.com/apk/res/android"
     android:src="@drawable/modli_logo"
-    android:gravity="center" />`;
+    android:gravity="center"
+    android:tileMode="disabled" />`;
         fs.writeFileSync(drawablePath, drawableContent, 'utf8');
         console.log('[withAndroidSplashScreen] (Manifest hook) Created splashscreen_logo.xml');
       }

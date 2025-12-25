@@ -93,7 +93,8 @@
         }
       ],
       "expo-notifications",
-      "./plugins/withAndroidNetworkSecurity"
+      "./plugins/withAndroidNetworkSecurity",
+      "./plugins/withAndroidSplashScreen"
     ],
     "experiments": {
       "typedRoutes": true

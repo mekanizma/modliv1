@@ -40,6 +40,7 @@ const categories: { key: ClothingCategory | 'all'; icon: keyof typeof Ionicons.g
   { key: 'outerwear', icon: 'body-outline' },
   { key: 'shoes', icon: 'footsteps' },
   { key: 'accessories', icon: 'bag' },
+  { key: 'underwear', icon: 'layers-outline' },
 ];
 
 const seasons: { key: Season | 'all'; label: string }[] = [
@@ -299,6 +300,7 @@ export default function WardrobeScreen() {
       outerwear: t.wardrobe.outerwear,
       shoes: t.wardrobe.shoes,
       accessories: t.wardrobe.accessories,
+      underwear: t.wardrobe.underwear,
     };
     return labels[key] || key;
   };

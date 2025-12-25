@@ -50,6 +50,24 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+// Helper function to check if error is related to invalid refresh token
+export function isInvalidTokenError(error: any): boolean {
+  if (!error) return false;
+  
+  const errorMessage = error.message || error.toString() || '';
+  const errorName = error.name || '';
+  const errorCode = error.code || '';
+  
+  return (
+    errorName === 'AuthApiError' ||
+    errorMessage.includes('Invalid Refresh Token') ||
+    errorMessage.includes('Refresh Token Not Found') ||
+    errorMessage.includes('JWT') ||
+    errorCode === 'invalid_refresh_token' ||
+    errorCode === 'refresh_token_not_found'
+  );
+}
+
 // Global error handler for invalid refresh tokens
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'TOKEN_REFRESHED' && !session) {

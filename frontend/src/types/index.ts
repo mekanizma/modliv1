@@ -16,7 +16,8 @@ export type ClothingCategory =
   | 'dresses'
   | 'outerwear'
   | 'shoes'
-  | 'accessories';
+  | 'accessories'
+  | 'underwear';
 
 export type Season = 
   | 'summer'
@@ -55,25 +56,25 @@ export const SUBSCRIPTION_PLANS: SubscriptionPlan[] = [
   {
     id: 'basic',
     name: 'Basic',
-    credits: 15,
-    price_try: 149,
-    price_usd: 3.99,
+    credits: 18,
+    price_try: 199.99,
+    price_usd: 4.99,
     productId: 'com.mekanizma.modli.basic',
   },
   {
     id: 'standard',
     name: 'Standard',
-    credits: 30,
-    price_try: 199,
-    price_usd: 4.99,
+    credits: 40,
+    price_try: 349.99,
+    price_usd: 8.99,
     productId: 'com.mekanizma.modli.standard',
   },
   {
     id: 'premium',
     name: 'Premium',
-    credits: 90,
-    price_try: 499,
-    price_usd: 11.99,
+    credits: 110, // 100 + 10 free
+    price_try: 599.99,
+    price_usd: 14.99,
     productId: 'com.mekanizma.modli.premium',
   },
 ];

@@ -13,7 +13,10 @@ try {
     isIapAvailable = true;
   }
 } catch (error) {
-  console.warn('react-native-iap not available:', error);
+  // Sadece development modunda uyarı göster
+  if (__DEV__) {
+    console.log('react-native-iap not available:', error);
+  }
   isIapAvailable = false;
 }
 
@@ -53,7 +56,10 @@ export interface PurchaseResult {
  */
 export async function initPurchases(): Promise<boolean> {
   if (!isIapAvailable || !RNIap) {
-    console.warn('IAP not available (Expo Go or not installed)');
+    // Sadece development modunda uyarı göster
+    if (__DEV__) {
+      console.log('IAP not available (Expo Go or not installed)');
+    }
     return false;
   }
   
@@ -75,7 +81,10 @@ export function setupPurchaseListeners(
   onPurchaseError: (error: PurchaseError) => void
 ) {
   if (!isIapAvailable || !RNIap) {
-    console.warn('IAP not available, listeners not set up');
+    // Sadece development modunda uyarı göster
+    if (__DEV__) {
+      console.log('IAP not available, listeners not set up');
+    }
     return;
   }
 
@@ -118,16 +127,33 @@ export function cleanupPurchaseListeners() {
  */
 export async function getProducts(): Promise<Product[]> {
   if (!isIapAvailable || !RNIap) {
-    console.warn('IAP not available, returning empty products');
+    // Sadece development modunda uyarı göster
+    if (__DEV__) {
+      console.log('IAP not available, returning empty products');
+    }
     return [];
   }
 
   try {
+    console.log('🛒 Requesting products with IDs:', PRODUCT_IDS);
     const products = await RNIap.getProducts({ skus: PRODUCT_IDS });
-    console.log('Available products:', products);
+    console.log('✅ Products received:', products.length);
+    if (products.length > 0) {
+      products.forEach((p: any) => {
+        console.log(`  - ${p.productId}: ${p.localizedPrice || p.price} ${p.currency || ''}`);
+      });
+    } else {
+      console.warn('⚠️ No products returned from store. Check if:');
+      console.warn('  1. Products are configured in Google Play Console / App Store Connect');
+      console.warn('  2. Products are published and active');
+      console.warn('  3. Product IDs match:', PRODUCT_IDS);
+      console.warn('  4. App is signed with the correct certificate');
+    }
     return products;
-  } catch (error) {
-    console.error('Failed to get products:', error);
+  } catch (error: any) {
+    console.error('❌ Failed to get products:', error);
+    console.error('❌ Error code:', error.code);
+    console.error('❌ Error message:', error.message);
     return [];
   }
 }
@@ -180,7 +206,10 @@ export async function acknowledgePurchase(
   purchase: Purchase
 ): Promise<boolean> {
   if (!isIapAvailable || !RNIap) {
-    console.warn('IAP not available, cannot acknowledge purchase');
+    // Sadece development modunda uyarı göster
+    if (__DEV__) {
+      console.log('IAP not available, cannot acknowledge purchase');
+    }
     return false;
   }
 

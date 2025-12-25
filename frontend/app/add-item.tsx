@@ -32,6 +32,7 @@ const categories: { key: ClothingCategory; icon: keyof typeof Ionicons.glyphMap 
   { key: 'outerwear', icon: 'body-outline' },
   { key: 'shoes', icon: 'footsteps' },
   { key: 'accessories', icon: 'bag' },
+  { key: 'underwear', icon: 'layers-outline' },
 ];
 
 const seasons: Season[] = ['summer', 'winter', 'spring', 'autumn', 'all'];
@@ -177,6 +178,7 @@ export default function AddItemScreen() {
       outerwear: t.wardrobe.outerwear,
       shoes: t.wardrobe.shoes,
       accessories: t.wardrobe.accessories,
+      underwear: t.wardrobe.underwear,
     };
     return labels[key] || key;
   };

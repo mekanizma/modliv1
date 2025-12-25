@@ -118,10 +118,39 @@ export default function SubscriptionScreen() {
         );
 
         // Ürünleri yükle
+        console.log('🛒 Loading products from store...');
         const availableProducts = await getProducts();
+        console.log('🛒 Products loaded:', availableProducts.length, 'products');
+        console.log('🛒 Product IDs:', availableProducts.map(p => p.productId));
+        
         if (mounted) {
           setProducts(availableProducts);
           setLoadingProducts(false);
+          
+          // Ürünler yüklenemediyse uyar
+          if (availableProducts.length === 0) {
+            console.warn('⚠️ No products loaded from store');
+            Alert.alert(
+              language === 'en' ? 'Warning' : 'Uyarı',
+              language === 'en'
+                ? 'Products could not be loaded. Please check your internet connection and try again.'
+                : 'Ürünler yüklenemedi. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.',
+              [
+                { text: 'OK' },
+                {
+                  text: language === 'en' ? 'Retry' : 'Tekrar Dene',
+                  onPress: async () => {
+                    setLoadingProducts(true);
+                    const retryProducts = await getProducts();
+                    if (mounted) {
+                      setProducts(retryProducts);
+                      setLoadingProducts(false);
+                    }
+                  },
+                },
+              ]
+            );
+          }
         }
       } catch (error) {
         console.error('Failed to initialize IAP:', error);
@@ -188,30 +217,82 @@ export default function SubscriptionScreen() {
       return;
     }
 
+    // Ürünler yüklenmemişse uyar
+    if (loadingProducts) {
+      Alert.alert(
+        language === 'en' ? 'Please Wait' : 'Lütfen Bekleyin',
+        language === 'en'
+          ? 'Products are still loading. Please wait a moment.'
+          : 'Ürünler hala yükleniyor. Lütfen birkaç saniye bekleyin.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Ürünler yüklenememişse uyar
+    if (products.length === 0) {
+      Alert.alert(
+        language === 'en' ? 'Error' : 'Hata',
+        language === 'en'
+          ? 'Products could not be loaded. Please check your internet connection and try again.'
+          : 'Ürünler yüklenemedi. Lütfen internet bağlantınızı kontrol edip tekrar deneyin.',
+        [
+          { text: 'OK' },
+          {
+            text: language === 'en' ? 'Retry' : 'Tekrar Dene',
+            onPress: async () => {
+              setLoadingProducts(true);
+              const retryProducts = await getProducts();
+              setProducts(retryProducts);
+              setLoadingProducts(false);
+            },
+          },
+        ]
+      );
+      return;
+    }
+
     setPurchasing(true);
 
     try {
       const productId = selectedPlan.productId;
+      console.log('🛒 Attempting to purchase:', productId);
+      console.log('🛒 Available products:', products.map(p => p.productId));
       
       // Ürünün mevcut olup olmadığını kontrol et
       const product = products.find(p => p.productId === productId);
       if (!product) {
+        console.error('❌ Product not found:', productId);
+        console.error('❌ Available products:', products);
         setPurchasing(false);
         Alert.alert(
           language === 'en' ? 'Error' : 'Hata',
           language === 'en'
-            ? 'Product not available. Please try again later.'
-            : 'Ürün mevcut değil. Lütfen daha sonra tekrar deneyin.',
-          [{ text: 'OK' }]
+            ? `Product "${productId}" is not available. Please check if the product is configured in the store.`
+            : `Ürün "${productId}" mevcut değil. Lütfen ürünün mağazada yapılandırıldığından emin olun.`,
+          [
+            { text: 'OK' },
+            {
+              text: language === 'en' ? 'Reload Products' : 'Ürünleri Yenile',
+              onPress: async () => {
+                setLoadingProducts(true);
+                const reloadedProducts = await getProducts();
+                setProducts(reloadedProducts);
+                setLoadingProducts(false);
+              },
+            },
+          ]
         );
         return;
       }
 
+      console.log('✅ Product found, starting purchase...');
       // Satın alma işlemini başlat
       const result = await purchaseProduct(productId);
       
       if (!result.success) {
         if (result.error !== 'cancelled') {
+          console.error('❌ Purchase failed:', result.error);
           Alert.alert(
             language === 'en' ? 'Purchase Failed' : 'Satın Alma Başarısız',
             result.error || (language === 'en' ? 'An error occurred during purchase.' : 'Satın alma sırasında bir hata oluştu.'),
@@ -219,10 +300,12 @@ export default function SubscriptionScreen() {
           );
         }
         setPurchasing(false);
+      } else {
+        console.log('✅ Purchase initiated successfully');
       }
       // Başarılı satın alma listener üzerinden işlenecek
     } catch (error: any) {
-      console.error('Purchase error:', error);
+      console.error('❌ Purchase error:', error);
       setPurchasing(false);
       Alert.alert(
         language === 'en' ? 'Purchase Failed' : 'Satın Alma Başarısız',
@@ -328,7 +411,11 @@ export default function SubscriptionScreen() {
                   {t.subscription[plan.id as keyof typeof t.subscription]}
                 </Text>
                 <Text style={styles.planCredits}>
-                  {plan.credits} {t.subscription.images}
+                  {plan.id === 'premium' 
+                    ? language === 'en' 
+                      ? '100+10 Free images'
+                      : '100 görsel +10 bedava'
+                    : `${plan.credits} ${t.subscription.images}`}
                 </Text>
                 <Text style={styles.planTagline}>
                   {getPlanTagline(plan.id)}
@@ -419,7 +506,7 @@ export default function SubscriptionScreen() {
             !selectedPlan && styles.purchaseButtonDisabled,
           ]}
           onPress={handlePurchase}
-          disabled={!selectedPlan || purchasing}
+          disabled={!selectedPlan || purchasing || loadingProducts || products.length === 0}
         >
           <Text style={styles.purchaseButtonText}>
             {purchasing

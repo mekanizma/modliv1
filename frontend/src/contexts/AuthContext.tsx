@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, isInvalidTokenError } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { registerPushToken, requestNotificationPermission } from '../lib/notifications';
 import * as WebBrowser from 'expo-web-browser';
@@ -57,13 +57,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) {
         console.error('❌ Session error:', error);
         // Invalid refresh token hatası durumunda oturumu temizle
-        const errorMessage = error.message || error.toString() || '';
-        if (errorMessage.includes('Invalid Refresh Token') || 
-            errorMessage.includes('Refresh Token Not Found') ||
-            errorMessage.includes('JWT') ||
-            error.code === 'invalid_refresh_token') {
+        if (isInvalidTokenError(error)) {
           console.log('🔄 Invalid refresh token detected, clearing session...');
-          supabase.auth.signOut().catch(console.error);
+          // Sessizce oturumu temizle - kullanıcı zaten giriş yapmamış
+          supabase.auth.signOut().catch((err) => {
+            console.error('Error during signOut:', err);
+          });
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -89,13 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       clearTimeout(timeoutId);
       console.error('❌ getSession error:', error);
       // Invalid refresh token hatası durumunda oturumu temizle
-      const errorMessage = error?.message || error?.toString() || '';
-      if (errorMessage.includes('Invalid Refresh Token') || 
-          errorMessage.includes('Refresh Token Not Found') ||
-          errorMessage.includes('JWT') ||
-          error?.code === 'invalid_refresh_token') {
+      if (isInvalidTokenError(error)) {
         console.log('🔄 Invalid refresh token in catch block, clearing session...');
-        supabase.auth.signOut().catch(console.error);
+        // Sessizce oturumu temizle
+        supabase.auth.signOut().catch((err) => {
+          console.error('Error during signOut:', err);
+        });
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -165,13 +163,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (error: any) {
         console.error('❌ Error in onAuthStateChange:', error);
-        const errorMessage = error?.message || error?.toString() || '';
-        if (errorMessage.includes('Invalid Refresh Token') || 
-            errorMessage.includes('Refresh Token Not Found') ||
-            errorMessage.includes('JWT') ||
-            error?.code === 'invalid_refresh_token') {
+        if (isInvalidTokenError(error)) {
           console.log('🔄 Invalid refresh token in onAuthStateChange, clearing session...');
-          await supabase.auth.signOut().catch(console.error);
+          // Sessizce oturumu temizle
+          await supabase.auth.signOut().catch((err) => {
+            console.error('Error during signOut:', err);
+          });
           setSession(null);
           setUser(null);
           setProfile(null);
@@ -197,9 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
       
       // Invalid refresh token hatası durumunda oturumu temizle
-      if (sessionError && (sessionError.message?.includes('Invalid Refresh Token') || sessionError.message?.includes('Refresh Token Not Found'))) {
+      if (sessionError && isInvalidTokenError(sessionError)) {
         console.log('🔄 Invalid refresh token in fetchProfile, clearing session...');
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch((err) => {
+          console.error('Error during signOut:', err);
+        });
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -215,9 +214,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .single();
 
       // Invalid token hatası durumunda oturumu temizle
-      if (error && (error.message?.includes('Invalid Refresh Token') || error.message?.includes('Refresh Token Not Found') || error.message?.includes('JWT'))) {
+      if (error && isInvalidTokenError(error)) {
         console.log('🔄 Invalid token in profile fetch, clearing session...');
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch((err) => {
+          console.error('Error during signOut:', err);
+        });
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -254,9 +255,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.error('Error fetching profile:', error);
       // Invalid token hatası durumunda oturumu temizle
-      if (error?.message?.includes('Invalid Refresh Token') || error?.message?.includes('Refresh Token Not Found')) {
+      if (isInvalidTokenError(error)) {
         console.log('🔄 Invalid token exception, clearing session...');
-        await supabase.auth.signOut();
+        await supabase.auth.signOut().catch((err) => {
+          console.error('Error during signOut:', err);
+        });
         setSession(null);
         setUser(null);
         setProfile(null);
@@ -374,10 +377,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error };
       }
 
+      // OAuth URL kontrolü - eğer URL yoksa hata döndür
+      if (!data || !data.url) {
+        console.error('❌ OAuth URL not received');
+        clearTimeout(oauthTimeout);
+        oauthInProgressRef.current = false;
+        setLoading(false);
+        return { 
+          error: { 
+            message: 'OAuth URL alınamadı. Lütfen tekrar deneyin.',
+            code: 'OAUTH_URL_MISSING'
+          } 
+        };
+      }
+
       // OAuth URL'i tarayıcıda aç
-      if (data.url) {
-        console.log('🌐 Opening OAuth URL:', data.url);
-        
+      console.log('🌐 Opening OAuth URL:', data.url);
+      
+      try {
         // Tüm platformlarda openAuthSessionAsync kullan
         // Backend callback token'ları alıp modli:// deep link'e yönlendirecek
         const result = await WebBrowser.openAuthSessionAsync(
@@ -385,15 +402,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           redirectUrl
         );
 
-        console.log(`📱 OAuth result (${Platform.OS}):`, result.type, result.url);
+        // Type guard ile url property'sine güvenli erişim
+        const resultUrl = 'url' in result ? result.url : null;
+        console.log(`📱 OAuth result (${Platform.OS}):`, result.type, resultUrl);
 
-        if (result.type === 'success' && result.url) {
+        if (result.type === 'success' && resultUrl) {
           // URL'den token'ları parse et
           let accessToken: string | null = null;
           let refreshToken: string | null = null;
 
           try {
-            const url = new URL(result.url);
+            const url = new URL(resultUrl);
             // Hash veya query params'tan token'ları al
             const hash = url.hash.substring(1);
             const params = new URLSearchParams(hash || url.search);
@@ -403,8 +422,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } catch (parseError) {
             console.error('URL parse error:', parseError);
             // Alternatif: regex ile parse et
-            const accessTokenMatch = result.url.match(/access_token=([^&]*)/);
-            const refreshTokenMatch = result.url.match(/refresh_token=([^&]*)/);
+            const accessTokenMatch = resultUrl.match(/access_token=([^&]*)/);
+            const refreshTokenMatch = resultUrl.match(/refresh_token=([^&]*)/);
             accessToken = accessTokenMatch ? decodeURIComponent(accessTokenMatch[1]) : null;
             refreshToken = refreshTokenMatch ? decodeURIComponent(refreshTokenMatch[1]) : null;
           }
@@ -443,8 +462,74 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           oauthInProgressRef.current = false;
           setLoading(false);
           return { error: { message: 'OAuth işlemi iptal edildi.' } };
+        } else if (result.type === 'dismiss') {
+          // Android'de dismiss durumunda deep link çalışmış olabilir
+          // Session kontrolü yap - eğer session varsa başarılı demektir
+          console.log('📱 OAuth dismissed - checking session (Android workaround)...');
+          
+          // Android'de dismiss durumunda session kontrolü yap
+          if (Platform.OS === 'android') {
+            // Kısa bir delay sonra session kontrol et (deep link işlenmesi için zaman ver)
+            setTimeout(async () => {
+              if (oauthInProgressRef.current) {
+                console.log('📱 Android: Checking session after dismiss...');
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
+                if (currentSession) {
+                  console.log('✅ Android: Session found after dismiss, OAuth succeeded!');
+                  clearTimeout(oauthTimeout);
+                  oauthInProgressRef.current = false;
+                  
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                  await fetchProfile(currentSession.user.id);
+                  await requestNotificationPermission().catch(console.error);
+                  setLoading(false);
+                } else {
+                  console.log('⚠️ Android: No session found after dismiss');
+                  // Session yoksa gerçekten iptal edilmiş demektir
+                  clearTimeout(oauthTimeout);
+                  oauthInProgressRef.current = false;
+                  setLoading(false);
+                }
+              }
+            }, 1000); // 1 saniye bekle - deep link işlenmesi için
+            
+            // 5 saniye sonra tekrar kontrol et (fallback)
+            setTimeout(async () => {
+              if (oauthInProgressRef.current) {
+                console.log('📱 Android: Final session check after dismiss (5s)...');
+                const { data: { session: currentSession } } = await supabase.auth.getSession();
+                if (currentSession) {
+                  console.log('✅ Android: Session found on final check!');
+                  clearTimeout(oauthTimeout);
+                  oauthInProgressRef.current = false;
+                  
+                  setSession(currentSession);
+                  setUser(currentSession.user);
+                  await fetchProfile(currentSession.user.id);
+                  await requestNotificationPermission().catch(console.error);
+                  setLoading(false);
+                } else {
+                  console.log('❌ Android: No session found, OAuth was cancelled');
+                  clearTimeout(oauthTimeout);
+                  oauthInProgressRef.current = false;
+                  setLoading(false);
+                }
+              }
+            }, 5000);
+            
+            // Hemen hata döndürme - session kontrolü yapılıyor
+            return { error: null };
+          } else {
+            // iOS'ta dismiss gerçekten iptal demektir
+            console.log('📱 OAuth dismissed by user (iOS)');
+            clearTimeout(oauthTimeout);
+            oauthInProgressRef.current = false;
+            setLoading(false);
+            return { error: { message: 'OAuth işlemi iptal edildi.' } };
+          }
         } else {
-          // dismiss veya başka durum - deep link bekleniyor
+          // Başka durum - deep link bekleniyor
           console.log('📱 OAuth result type:', result.type);
           console.log('📱 OAuth: waiting for deep link callback...');
           console.log('📱 Deep link should be: modli://auth/callback?access_token=...&refresh_token=...');
@@ -452,20 +537,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // YENİ: 5 saniye sonra session kontrol et
           setTimeout(async () => {
             if (oauthInProgressRef.current) {
-              console.log('📱 Checking session after OAuth...');
+              console.log('📱 Checking session after OAuth (5s)...');
               const { data: { session: currentSession } } = await supabase.auth.getSession();
               if (currentSession) {
-                console.log('✅ Session found, updating state');
+                console.log('✅ Session found after OAuth, updating all UI states...');
                 oauthInProgressRef.current = false;
+                
+                // ÇÖZÜM: State'leri manuel olarak güncelle
+                setSession(currentSession);
+                setUser(currentSession.user);
+                
+                // Profile'i fetch et
+                await fetchProfile(currentSession.user.id);
+                await requestNotificationPermission().catch(console.error);
+                
+                // Loading'i en son false yap (profile fetch edildikten sonra)
                 setLoading(false);
+              } else {
+                console.log('⚠️ No session found after 5s, waiting for deep link...');
               }
             }
           }, 5000);
 
           // 10 saniye timeout ekle (fallback)
-          setTimeout(() => {
+          setTimeout(async () => {
             if (oauthInProgressRef.current) {
-              console.warn('⚠️ Deep link timeout - no callback received after 10 seconds');
+              console.warn('⚠️ Deep link timeout after 10 seconds, final session check...');
+              
+              // Son bir kez daha session kontrol et
+              const { data: { session: currentSession } } = await supabase.auth.getSession();
+              if (currentSession) {
+                console.log('✅ Session found on final timeout check, updating UI...');
+                
+                setSession(currentSession);
+                setUser(currentSession.user);
+                await fetchProfile(currentSession.user.id);
+                await requestNotificationPermission().catch(console.error);
+              } else {
+                console.error('❌ No session found after 10 seconds - OAuth likely failed');
+              }
+              
               oauthInProgressRef.current = false;
               setLoading(false);
             }
@@ -473,12 +584,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           return { error: null };
         }
+      } catch (browserError: any) {
+        // WebBrowser açma hatası
+        console.error('❌ WebBrowser error:', browserError);
+        clearTimeout(oauthTimeout);
+        oauthInProgressRef.current = false;
+        setLoading(false);
+        
+        // Daha açıklayıcı hata mesajı
+        let errorMessage = 'Tarayıcı açılamadı. Lütfen tekrar deneyin.';
+        if (browserError.message) {
+          errorMessage = browserError.message;
+        } else if (browserError.toString && browserError.toString().includes('expo-web-browser')) {
+          errorMessage = 'OAuth tarayıcısı başlatılamadı. Lütfen uygulamayı yeniden başlatıp tekrar deneyin.';
+        }
+        
+        return { 
+          error: { 
+            message: errorMessage,
+            code: 'BROWSER_ERROR'
+          }
+        };
       }
-
-      clearTimeout(oauthTimeout);
-      oauthInProgressRef.current = false;
-      setLoading(false);
-      return { error: null };
     } catch (err: any) {
       console.error('❌ OAuth sign in error:', err);
       clearTimeout(oauthTimeout);

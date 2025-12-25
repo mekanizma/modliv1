@@ -67,7 +67,27 @@ EXPO_MAX_BATCH = 90
 def create_thumbnail(image_data: bytes, size: tuple = (300, 300)) -> bytes:
     """Create a thumbnail from image data"""
     try:
-        image = Image.open(io.BytesIO(image_data))
+        # Validate input
+        if not image_data or len(image_data) == 0:
+            raise ValueError("Empty image data")
+        
+        # Create BytesIO from image data
+        image_stream = io.BytesIO(image_data)
+        
+        # Open and verify image
+        try:
+            image = Image.open(image_stream)
+            # Verify it's a valid image (this will raise an exception if invalid)
+            image.verify()
+        except Exception as img_error:
+            logger.error(f"Cannot identify image file: {str(img_error)}")
+            raise ValueError(f"Cannot identify image file: {str(img_error)}")
+        
+        # Reopen image for processing (verify() consumes the file)
+        image_stream.seek(0)
+        image = Image.open(image_stream)
+        
+        # Create thumbnail
         image.thumbnail(size, Image.Resampling.LANCZOS)
         
         # Convert to RGB if necessary
@@ -78,12 +98,15 @@ def create_thumbnail(image_data: bytes, size: tuple = (300, 300)) -> bytes:
             background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
             image = background
         
+        # Save to BytesIO
         output = io.BytesIO()
         image.save(output, format='JPEG', quality=85, optimize=True)
         return output.getvalue()
+    except ValueError:
+        raise
     except Exception as e:
         logger.error(f"Error creating thumbnail: {str(e)}")
-        raise
+        raise ValueError(f"Error creating thumbnail: {str(e)}")
 
 
 def base64_to_bytes(base64_string: str) -> bytes:
@@ -1676,10 +1699,19 @@ async def upload_image(
         from supabase import create_client, Client
         supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+        # Read image data once and store it
         image_bytes = await file.read()
         
-        # Create thumbnail
-        thumbnail_bytes = create_thumbnail(image_bytes, size=(300, 300))
+        # Validate image data
+        if not image_bytes or len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Empty image file")
+        
+        # Create thumbnail (this will validate the image and raise ValueError if invalid)
+        try:
+            thumbnail_bytes = create_thumbnail(image_bytes, size=(300, 300))
+        except ValueError as thumb_error:
+            logger.error(f"Thumbnail creation failed: {str(thumb_error)}")
+            raise HTTPException(status_code=400, detail=str(thumb_error))
         
         # Generate unique filenames
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
