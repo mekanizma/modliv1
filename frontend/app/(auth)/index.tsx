@@ -50,6 +50,10 @@ export default function SignInScreen() {
       // Local loading state'lerini temizle
       setLoading(false);
       setOauthLoading(null);
+    } else if (!authLoading && !user) {
+      // AuthContext loading tamamlandı ama user yok - OAuth iptal edilmiş veya başarısız olmuş
+      // OAuth loading state'ini temizle
+      setOauthLoading(null);
       
       // Navigate based on onboarding status
       if (profile.onboarding_completed === false) {
@@ -182,9 +186,18 @@ export default function SignInScreen() {
             : `${provider} girişi başarısız`)
         );
         setOauthLoading(null); // Hata durumunda loading'i temizle
+      } else {
+        // Başarılı durumda - AuthContext profile fetch edecek ve yukarıdaki useEffect navigation yapacak
+        // Loading state'i useEffect içinde temizlenecek
+        // Ama eğer dismiss olduysa ve session kontrolü yapılıyorsa, timeout ekle
+        setTimeout(() => {
+          // 10 saniye sonra hala loading varsa temizle (timeout)
+          if (oauthLoading === provider) {
+            console.log('⏰ OAuth loading timeout, clearing state');
+            setOauthLoading(null);
+          }
+        }, 10000);
       }
-      // Başarılı olursa AuthContext profile fetch edecek ve yukarıdaki useEffect navigation yapacak
-      // setOauthLoading(null) useEffect içinde yapılacak
     } catch (err: any) {
       console.error(`❌ ${provider} OAuth exception:`, err);
       Alert.alert(

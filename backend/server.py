@@ -620,6 +620,56 @@ async def oauth_callback(
             const btn = document.getElementById('open-btn');
             btn.href = deepLink;
             
+            // Android Intent URL için onclick event ekle (Chrome Custom Tabs güvenlik kısıtlaması)
+            if (isAndroid) {{
+                btn.onclick = function(e) {{
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Button clicked, attempting to open Intent URL');
+                    console.log('Intent URL:', deepLink);
+                    
+                    // Chrome Custom Tabs'ta Intent URL açmak için birden fazla yöntem dene
+                    let opened = false;
+                    
+                    // Yöntem 1: window.location.href (en yaygın)
+                    try {{
+                        window.location.href = deepLink;
+                        opened = true;
+                        console.log('Attempted window.location.href');
+                    }} catch (err) {{
+                        console.error('window.location.href failed:', err);
+                    }}
+                    
+                    // Yöntem 2: window.open (alternatif)
+                    if (!opened) {{
+                        try {{
+                            window.open(deepLink, '_blank');
+                            opened = true;
+                            console.log('Attempted window.open');
+                        }} catch (err) {{
+                            console.error('window.open failed:', err);
+                        }}
+                    }}
+                    
+                    // Yöntem 3: location.replace (son çare)
+                    if (!opened) {{
+                        try {{
+                            window.location.replace(deepLink);
+                            console.log('Attempted window.location.replace');
+                        }} catch (err) {{
+                            console.error('window.location.replace failed:', err);
+                        }}
+                    }}
+                    
+                    return false;
+                }};
+                
+                // Ayrıca href'e tıklama da çalışsın diye
+                btn.addEventListener('click', function(e) {{
+                    // onclick zaten handle ediyor, bu sadece fallback
+                }}, true);
+            }}
+            
             // Spinner'ı kaldır ve butonu göster
             setTimeout(() => {{
                 document.getElementById('spinner').style.display = 'none';
@@ -752,6 +802,51 @@ async def oauth_callback(
                     font-weight: 600;
                     box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
                 `;
+                
+                // Android Intent URL için onclick event ekle (Chrome Custom Tabs güvenlik kısıtlaması)
+                if (isAndroid) {{
+                    button.onclick = function(e) {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('Button clicked, attempting to open Intent URL');
+                        console.log('Intent URL:', deepLink);
+                        
+                        // Chrome Custom Tabs'ta Intent URL açmak için birden fazla yöntem dene
+                        let opened = false;
+                        
+                        // Yöntem 1: window.location.href (en yaygın)
+                        try {{
+                            window.location.href = deepLink;
+                            opened = true;
+                            console.log('Attempted window.location.href');
+                        }} catch (err) {{
+                            console.error('window.location.href failed:', err);
+                        }}
+                        
+                        // Yöntem 2: window.open (alternatif)
+                        if (!opened) {{
+                            try {{
+                                window.open(deepLink, '_blank');
+                                opened = true;
+                                console.log('Attempted window.open');
+                            }} catch (err) {{
+                                console.error('window.open failed:', err);
+                            }}
+                        }}
+                        
+                        // Yöntem 3: location.replace (son çare)
+                        if (!opened) {{
+                            try {{
+                                window.location.replace(deepLink);
+                                console.log('Attempted window.location.replace');
+                            }} catch (err) {{
+                                console.error('window.location.replace failed:', err);
+                            }}
+                        }}
+                        
+                        return false;
+                    }};
+                }}
                 
                 document.querySelector('.container').appendChild(button);
                 
