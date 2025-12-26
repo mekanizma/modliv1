@@ -496,26 +496,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // Android'de dismiss durumunda session kontrolü yap
           if (Platform.OS === 'android') {
-            // HEMEN kontrol et (deep link hızlı çalışabilir)
-            setTimeout(async () => {
-              if (oauthInProgressRef.current) {
-                console.log('📱 Android: Immediate session check after dismiss (0.5s)...');
-                const { data: { session: currentSession } } = await supabase.auth.getSession();
-                if (currentSession) {
-                  console.log('✅ Android: Session found immediately after dismiss!');
-                  clearTimeout(oauthTimeout);
-                  oauthInProgressRef.current = false;
-                  
-                  setSession(currentSession);
-                  setUser(currentSession.user);
-                  await fetchProfile(currentSession.user.id);
-                  await requestNotificationPermission().catch(console.error);
-                  setLoading(false);
-                  return;
-                }
-              }
-            }, 500);
-            
             // İlk kontrol: 2 saniye sonra (deep link işlenmesi için yeterli zaman)
             setTimeout(async () => {
               if (oauthInProgressRef.current) {
@@ -535,7 +515,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   console.log('⚠️ Android: No session found after 2s, waiting...');
                 }
               }
-            }, 2000);
+            }, 2000); // 1s → 2s (daha güvenilir)
             
             // İkinci kontrol: 5 saniye sonra
             setTimeout(async () => {
@@ -580,7 +560,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                   setLoading(false);
                 }
               }
-            }, 8000);
+            }, 8000); // YENİ: 8 saniye final check
             
             // Hemen hata döndürme - session kontrolü yapılıyor
             return { error: null };

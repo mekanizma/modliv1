@@ -114,40 +114,22 @@ function AppBootstrap({ onReady }: { onReady: () => void }) {
           
           // Intent URL'den query string'i parse et
           // intent://auth/callback?access_token=XXX&refresh_token=YYY#Intent;...
-          // Önce #Intent'ten önceki kısmı al
-          const intentParts = event.url.split('#Intent');
-          if (intentParts.length > 0) {
-            const urlPart = intentParts[0];
-            console.log('🔗 URL part before #Intent:', urlPart);
-            
-            // Query string'i parse et
-            const urlMatch = urlPart.match(/intent:\/\/[^?]*\?(.*)/);
-            if (urlMatch) {
-              console.log('🔗 Found query string in intent:', urlMatch[1]);
-              const params = new URLSearchParams(urlMatch[1]);
-              accessToken = params.get('access_token');
-              refreshToken = params.get('refresh_token');
-              type = params.get('type');
-              // URL decode
-              if (accessToken) accessToken = decodeURIComponent(accessToken);
-              if (refreshToken) refreshToken = decodeURIComponent(refreshToken);
-              console.log('🔗 Parsed tokens from intent - access_token:', accessToken ? 'found' : 'missing', 'refresh_token:', refreshToken ? 'found' : 'missing');
-            } else {
-              console.warn('⚠️ No query string found in intent URL');
-              // Fallback: Tüm URL'den regex ile parse et
-              const accessTokenMatch = event.url.match(/access_token=([^&#]*)/);
-              const refreshTokenMatch = event.url.match(/refresh_token=([^&#]*)/);
-              if (accessTokenMatch && refreshTokenMatch) {
-                accessToken = decodeURIComponent(accessTokenMatch[1]);
-                refreshToken = decodeURIComponent(refreshTokenMatch[1]);
-                console.log('🔗 Parsed tokens from intent (fallback regex)');
-              }
-            }
+          const intentMatch = event.url.match(/intent:\/\/[^?]*\?([^#]*)/);
+          if (intentMatch) {
+            console.log('🔗 Found query string in intent:', intentMatch[1]);
+            const params = new URLSearchParams(intentMatch[1]);
+            accessToken = params.get('access_token');
+            refreshToken = params.get('refresh_token');
+            type = params.get('type');
+            // URL decode
+            if (accessToken) accessToken = decodeURIComponent(accessToken);
+            if (refreshToken) refreshToken = decodeURIComponent(refreshToken);
+            console.log('🔗 Parsed tokens from intent - access_token:', accessToken ? 'found' : 'missing', 'refresh_token:', refreshToken ? 'found' : 'missing');
           } else {
-            console.warn('⚠️ Intent URL format invalid');
+            console.warn('⚠️ No query string found in intent URL');
             // Fallback: Tüm URL'den regex ile parse et
-            const accessTokenMatch = event.url.match(/access_token=([^&#]*)/);
-            const refreshTokenMatch = event.url.match(/refresh_token=([^&#]*)/);
+            const accessTokenMatch = event.url.match(/access_token=([^&]*)/);
+            const refreshTokenMatch = event.url.match(/refresh_token=([^&]*)/);
             if (accessTokenMatch && refreshTokenMatch) {
               accessToken = decodeURIComponent(accessTokenMatch[1]);
               refreshToken = decodeURIComponent(refreshTokenMatch[1]);
@@ -307,7 +289,7 @@ function AppBootstrap({ onReady }: { onReady: () => void }) {
     return () => {
       subscription.remove();
     };
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     // Uygulama hazır olduğunda splash screen'i kapat
