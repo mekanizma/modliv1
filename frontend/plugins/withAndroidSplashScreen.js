@@ -66,15 +66,17 @@ const withAndroidSplashScreen = (config) => {
         }
 
         // Create splashscreen_logo.xml drawable that references modli_logo
-        // Android 12+ splash screen için layer-list ile 240dp scale kullanıyoruz
+        // Android 12+ splash screen için layer-list ile 160dp scale kullanıyoruz
         // gravity="fill" logo'nun tamamını gösterir, crop yok
+        // 160dp boyutunda - yuvarlak alana sığması için küçültüldü
         const drawableContent = `<?xml version="1.0" encoding="utf-8"?>
 <!-- Android 12+ splash screen için logo drawable -->
 <!-- Layer-list ile logo'yu scale ediyoruz - tam görünür, crop yok -->
+<!-- 160dp boyutunda - yuvarlak alana sığması için küçültüldü -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="240dp"
-        android:height="240dp"
+        android:width="160dp"
+        android:height="160dp"
         android:gravity="center">
         <bitmap
             android:src="@drawable/modli_logo"
@@ -149,10 +151,11 @@ const withAndroidSplashScreen = (config) => {
       const drawableContent = `<?xml version="1.0" encoding="utf-8"?>
 <!-- Android 12+ splash screen için logo drawable -->
 <!-- Layer-list ile logo'yu scale ediyoruz - tam görünür, crop yok -->
+<!-- 160dp boyutunda - yuvarlak alana sığması için küçültüldü -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
-        android:width="240dp"
-        android:height="240dp"
+        android:width="160dp"
+        android:height="160dp"
         android:gravity="center">
         <bitmap
             android:src="@drawable/modli_logo"

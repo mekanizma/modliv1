@@ -106,17 +106,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('🔄 Auth state changed:', event, session ? 'Session exists' : 'No session');
         
         // YENİ: SIGNED_IN event'inde OAuth callback'i kontrol et
-        if (event === 'SIGNED_IN' && oauthInProgressRef.current) {
-          console.log('✅ OAuth SIGNED_IN detected, clearing loading state');
-          oauthInProgressRef.current = false;
-          setLoading(false);
+        // Deep link handler'dan setSession çağrıldığında bu event tetiklenir
+        if (event === 'SIGNED_IN') {
+          console.log('✅ SIGNED_IN event detected');
+          console.log('✅ OAuth in progress:', oauthInProgressRef.current);
+          console.log('✅ Session user ID:', session?.user?.id);
+          console.log('✅ Session user email:', session?.user?.email);
+          
+          // OAuth işlemi devam ediyorsa özel handling yap
+          if (oauthInProgressRef.current) {
+            console.log('✅ OAuth SIGNED_IN detected, clearing loading state');
+            oauthInProgressRef.current = false;
+            setLoading(false);
+          }
+          
+          // Session'ı her zaman güncelle (OAuth olsun ya da olmasın)
           setSession(session);
           setUser(session?.user ?? null);
+          
           if (session?.user) {
-            fetchProfile(session.user.id).catch(console.error);
-            requestNotificationPermission().catch(console.error);
+            console.log('✅ Fetching profile for user:', session.user.id);
+            fetchProfile(session.user.id).catch((error) => {
+              console.error('❌ Error fetching profile:', error);
+            });
+            requestNotificationPermission().catch((error) => {
+              console.error('❌ Error requesting notification permission:', error);
+            });
+          } else {
+            console.warn('⚠️ SIGNED_IN event but no user in session');
           }
-          return;
+          
+          // OAuth işlemi devam ediyorsa return et (diğer event handling'i atla)
+          if (oauthInProgressRef.current) {
+            return;
+          }
         }
         
         // INITIAL_SESSION event'i - session'ın ilk yüklendiği zaman
@@ -495,6 +518,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // _layout.tsx'teki deep link handler'a güveniyoruz - hata döndürmüyoruz
           console.log(`📱 OAuth ${result.type} - waiting for deep link callback...`);
           console.log('📱 Deep link handler will process the callback automatically');
+          console.log('📱 Checking session in 1 second, then 3 seconds...');
+          
+          // 1 saniye sonra ilk kontrol (hızlı deep link için)
+          setTimeout(async () => {
+            if (oauthInProgressRef.current) {
+              console.log('📱 Checking session after dismiss/locked (1s)...');
+              const { data: { session: currentSession } } = await supabase.auth.getSession();
+              if (currentSession) {
+                console.log('✅ Session found after dismiss/locked (1s)! OAuth succeeded!');
+                oauthInProgressRef.current = false;
+                setLoading(false);
+                // onAuthStateChange event'i zaten tetiklenmiş olmalı, ama emin olmak için
+                setSession(currentSession);
+                setUser(currentSession.user);
+                await fetchProfile(currentSession.user.id).catch(console.error);
+                await requestNotificationPermission().catch(console.error);
+              } else {
+                console.log('⚠️ No session found after 1s, waiting longer...');
+              }
+            }
+          }, 1000);
+          
+          // 3 saniye sonra ikinci kontrol (yavaş deep link için)
+          setTimeout(async () => {
+            if (oauthInProgressRef.current) {
+              console.log('📱 Checking session after dismiss/locked (3s)...');
+              const { data: { session: currentSession } } = await supabase.auth.getSession();
+              if (currentSession) {
+                console.log('✅ Session found after dismiss/locked (3s)! OAuth succeeded!');
+                oauthInProgressRef.current = false;
+                setLoading(false);
+                setSession(currentSession);
+                setUser(currentSession.user);
+                await fetchProfile(currentSession.user.id).catch(console.error);
+                await requestNotificationPermission().catch(console.error);
+              } else {
+                console.log('⚠️ No session found after 3s, deep link handler may have failed');
+                // Hala session yoksa, loading'i false yap (kullanıcı manuel olarak tekrar deneyebilir)
+                oauthInProgressRef.current = false;
+                setLoading(false);
+              }
+            }
+          }, 3000);
           
           // Deep link handler'a güveniyoruz - sadece timeout bekliyoruz
           // Hata döndürmüyoruz, deep link handler session'ı set edecek

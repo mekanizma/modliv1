@@ -202,17 +202,25 @@ function AppBootstrap({ onReady }: { onReady: () => void }) {
           console.log('🔐 OAuth callback detected, setting session...');
           console.log('🔐 Access token length:', accessToken.length);
           console.log('🔐 Refresh token length:', refreshToken.length);
+          console.log('🔐 Access token preview:', accessToken.substring(0, 20) + '...');
+          console.log('🔐 Refresh token preview:', refreshToken.substring(0, 20) + '...');
           
           try {
+            console.log('🔐 Calling supabase.auth.setSession...');
             const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
               access_token: accessToken,
               refresh_token: refreshToken,
             });
             
+            console.log('🔐 setSession response received');
+            console.log('🔐 Session data:', sessionData ? 'exists' : 'null');
+            console.log('🔐 Session error:', sessionError ? 'exists' : 'null');
+            
             if (sessionError) {
               console.error('❌ Session set error:', sessionError);
               console.error('❌ Error message:', sessionError.message);
               console.error('❌ Error code:', sessionError.status);
+              console.error('❌ Full error:', JSON.stringify(sessionError, null, 2));
               // Hata durumunda auth sayfasına yönlendir
               setTimeout(() => {
                 router.replace('/(auth)');
@@ -221,28 +229,32 @@ function AppBootstrap({ onReady }: { onReady: () => void }) {
               console.log('✅ Session set successfully');
               console.log('✅ User ID:', sessionData.session.user?.id);
               console.log('✅ User email:', sessionData.session.user?.email);
-              
-              // OAuth callback başarılı - doğru sayfaya yönlendir
-              // Expo Router'ın "Unmatched Route" hatası vermesini engellemek için
-              // session set edildikten sonra ana sayfaya yönlendir
-              // index.tsx'te profile kontrolü yapılacak ve doğru sayfaya yönlendirilecek
-              setTimeout(() => {
-                console.log('🔄 Redirecting after OAuth success...');
-                router.replace('/');
-              }, 300);
+              console.log('✅ Session expires at:', sessionData.session.expires_at);
+              console.log('✅ Access token valid:', sessionData.session.access_token ? 'yes' : 'no');
               
               // onAuthStateChange event'i otomatik tetiklenecek ve AuthContext güncellenecek
               // Bu sayede loading state'i de otomatik olarak false olacak
+              // Biraz bekle ki onAuthStateChange event'i işlensin
+              // SIGNED_IN event'i tetiklenmesi için zaman ver
+              console.log('🔄 Waiting for onAuthStateChange SIGNED_IN event...');
+              setTimeout(() => {
+                console.log('🔄 Redirecting after OAuth success...');
+                console.log('🔄 onAuthStateChange should have updated AuthContext by now');
+                router.replace('/');
+              }, 1000); // 500ms'den 1000ms'ye çıkardık - onAuthStateChange için daha fazla zaman
+              
               return; // Deep link handling tamamlandı, return et
             } else {
               console.warn('⚠️ Session set returned no session data');
+              console.warn('⚠️ Session data:', JSON.stringify(sessionData, null, 2));
               setTimeout(() => {
                 router.replace('/(auth)');
               }, 500);
             }
           } catch (sessionError: any) {
             console.error('❌ Exception setting session:', sessionError);
-            console.error('❌ Error details:', JSON.stringify(sessionError));
+            console.error('❌ Error details:', JSON.stringify(sessionError, null, 2));
+            console.error('❌ Error stack:', sessionError.stack);
             setTimeout(() => {
               router.replace('/(auth)');
             }, 500);
