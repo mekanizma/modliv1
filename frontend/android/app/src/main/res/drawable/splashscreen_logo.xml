@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Android 12+ splash screen için logo drawable -->
-<!-- Logo'nun tamamının görünmesi için doğrudan bitmap kullanıyoruz -->
-<!-- Android otomatik olarak logo'yu container'a sığdırır -->
-<bitmap
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/modli_logo"
-    android:gravity="center"
-    android:tileMode="disabled" />
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Logo için maksimum alan kullanımı -->
+    <!-- Android 12+ splash screen maksimum 288dp x 288dp alan verir -->
+    <!-- Logo'nun tamamının görünmesi için scale kullanarak container'a sığdırıyoruz -->
+    <item
+        android:width="288dp"
+        android:height="288dp"
+        android:gravity="center">
+        <!-- Logo'yu container'a sığdırmak için scale kullanıyoruz -->
+        <!-- scaleLevel 0.85 = logo'yu %85 boyutunda göster (tamamı görünür) -->
+        <scale
+            android:drawable="@drawable/modli_logo"
+            android:scaleGravity="center"
+            android:scaleLevel="0.85" />
+    </item>
+</layer-list>

@@ -577,8 +577,6 @@ async def oauth_callback(
             margin-top: 16px;
             font-size: 18px;
             font-weight: 600;
-            border: none;
-            cursor: pointer;
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }}
         .button:active {{
@@ -593,10 +591,10 @@ async def oauth_callback(
 <body>
     <div class="container">
         <div class="spinner" id="spinner"></div>
-        <p id="message">Uygulamaya yönlendiriliyor...</p>
-        <div class="manual-open" id="manual" style="display: none;">
-            <p>Uygulama otomatik açılmadıysa:</p>
-            <button class="button" id="open-btn">Modli'yi Aç</button>
+        <p id="message">Giriş başarılı!</p>
+        <div class="manual-open" id="manual">
+            <p>Uygulamayı açmak için tıklayın:</p>
+            <a href="#" class="button" id="open-btn">Modli'yi Aç</a>
         </div>
     </div>
     <script>
@@ -604,58 +602,29 @@ async def oauth_callback(
             console.log('OAuth redirect - Platform detection');
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
             const isAndroid = /android/i.test(userAgent);
-            const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
             
-            console.log('Platform:', isAndroid ? 'Android' : isIOS ? 'iOS' : 'Unknown');
+            console.log('Platform:', isAndroid ? 'Android' : 'iOS');
             
             let deepLink;
             if (isAndroid) {{
-                // Android Intent URL
                 deepLink = "{deep_link_android}";
                 console.log('Using Android Intent URL');
             }} else {{
-                // iOS veya diğer platformlar için normal deep link
                 deepLink = "{deep_link_ios}";
                 console.log('Using iOS deep link');
             }}
             
             console.log('Deep link:', deepLink);
             
-            // iOS için otomatik redirect çalışır
-            if (isIOS) {{
-                console.log('iOS detected - attempting automatic redirect');
-                window.location.href = deepLink;
-                
-                setTimeout(() => {{
-                    document.getElementById('spinner').style.display = 'none';
-                    document.getElementById('manual').style.display = 'block';
-                    document.getElementById('message').textContent = 'Uygulamaya dönün';
-                }}, 1000);
-            }} else {{
-                // Android için MANUEL BUTON ZORUNLU (Chrome Custom Tabs Intent URL restriction)
-                console.log('Android detected - showing manual button');
-                
-                // Spinner'ı kaldır ve butonu göster
-                setTimeout(() => {{
-                    document.getElementById('spinner').style.display = 'none';
-                    document.getElementById('manual').style.display = 'block';
-                    document.getElementById('message').textContent = 'Giriş başarılı!';
-                }}, 500);
-            }}
+            // Butonu güncelle (<a> tag href kullan - Chrome Custom Tabs için gerekli)
+            const btn = document.getElementById('open-btn');
+            btn.href = deepLink;
             
-            // Manuel buton için event (hem iOS hem Android)
-            document.getElementById('open-btn').onclick = () => {{
-                console.log('Manual button clicked, opening:', deepLink);
-                window.location.href = deepLink;
-                
-                // Buton metnini değiştir
-                document.getElementById('open-btn').textContent = 'Uygulamaya dönün...';
-                
-                setTimeout(() => {{
-                    document.getElementById('message').textContent = 'Uygulamaya geçin';
-                    document.getElementById('open-btn').textContent = 'Tekrar Dene';
-                }}, 2000);
-            }};
+            // Spinner'ı kaldır ve butonu göster
+            setTimeout(() => {{
+                document.getElementById('spinner').style.display = 'none';
+                document.getElementById('manual').style.display = 'block';
+            }}, 300);
         }})();
     </script>
 </body>
@@ -707,20 +676,19 @@ async def oauth_callback(
             color: #f97373;
             margin-top: 20px;
         }}
-        button {{
+        .button {{
             display: inline-block;
             padding: 16px 32px;
             background: #6366f1;
             color: white;
-            border: none;
+            text-decoration: none;
             border-radius: 12px;
             margin-top: 16px;
             font-size: 18px;
             font-weight: 600;
-            cursor: pointer;
             box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
         }}
-        button:active {{
+        .button:active {{
             transform: scale(0.98);
         }}
     </style>
@@ -734,22 +702,17 @@ async def oauth_callback(
     <script>
         (function() {{
             console.log('OAuth callback page loaded (fragment mode)');
-            console.log('URL:', window.location.href);
-            console.log('Hash:', window.location.hash);
             
-            // Platform detection
             const userAgent = navigator.userAgent || navigator.vendor || window.opera;
             const isAndroid = /android/i.test(userAgent);
-            const isIOS = /iPad|iPhone|iPod/.test(userAgent) && !window.MSStream;
             
-            console.log('Platform detected:', isAndroid ? 'Android' : isIOS ? 'iOS' : 'Unknown');
+            console.log('Platform:', isAndroid ? 'Android' : 'iOS');
             
-            // Fragment (#) içindeki token'ları kontrol et
             const hash = window.location.hash.substring(1);
             if (!hash) {{
                 console.error('No hash fragment found');
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = 'Token\\'lar bulunamadı. Lütfen tekrar deneyin.';
+                document.getElementById('error').textContent = 'Token\\'lar bulunamadı.';
                 document.getElementById('message').style.display = 'none';
                 return;
             }}
@@ -758,73 +721,46 @@ async def oauth_callback(
             const accessToken = hashParams.get('access_token');
             const refreshToken = hashParams.get('refresh_token');
             
-            console.log('Access token:', accessToken ? 'found' : 'missing');
-            console.log('Refresh token:', refreshToken ? 'found' : 'missing');
+            console.log('Tokens:', accessToken ? 'found' : 'missing', refreshToken ? 'found' : 'missing');
             
             if (accessToken && refreshToken) {{
-                // Platform'a göre deep link oluştur
                 let deepLink;
                 if (isAndroid) {{
-                    // Android Intent URL (fragment mode için)
                     deepLink = `intent://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth#Intent;scheme=modli;package=com.mekanizma.modli;S.browser_fallback_url=https%3A%2F%2Fmodli.mekanizma.com;end`;
-                    console.log('Using Android Intent URL (fragment mode)');
                 }} else {{
-                    // iOS normal deep link  
                     deepLink = `modli://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth`;
-                    console.log('Using iOS deep link (fragment mode)');
                 }}
                 
                 console.log('Deep link created');
                 
-                // iOS için otomatik redirect
-                if (isIOS) {{
-                    console.log('iOS - attempting automatic redirect');
-                    document.getElementById('message').textContent = 'Uygulamaya yönlendiriliyor...';
-                    window.location.href = deepLink;
-                    
-                    setTimeout(() => {{
-                        document.getElementById('message').textContent = 'Uygulamaya dönün';
-                    }}, 1000);
-                }} else {{
-                    // Android - MANUEL BUTON GÖSTER
-                    console.log('Android - showing manual button (Chrome restriction)');
-                    document.getElementById('message').textContent = 'Giriş başarılı! Uygulamayı açın:';
-                    
-                    // Buton ekle
-                    const button = document.createElement('button');
-                    button.textContent = 'Modli\\'yi Aç';
-                    button.style.cssText = `
-                        display: inline-block;
-                        padding: 16px 32px;
-                        background: #6366f1;
-                        color: white;
-                        border: none;
-                        border-radius: 12px;
-                        margin-top: 16px;
-                        font-size: 18px;
-                        font-weight: 600;
-                        cursor: pointer;
-                        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
-                    `;
-                    button.onclick = () => {{
-                        console.log('Button clicked, opening app');
-                        window.location.href = deepLink;
-                        button.textContent = 'Uygulamaya geçin...';
-                        setTimeout(() => {{
-                            button.textContent = 'Tekrar Dene';
-                        }}, 2000);
-                    }};
-                    
-                    document.querySelector('.container').appendChild(button);
-                    
-                    // Spinner'ı gizle
-                    const spinner = document.querySelector('.spinner');
-                    if (spinner) spinner.style.display = 'none';
-                }}
+                // Buton ekle (<a> tag kullan - Chrome Custom Tabs için gerekli)
+                document.getElementById('message').textContent = 'Giriş başarılı! Uygulamayı açın:';
+                
+                const button = document.createElement('a');
+                button.href = deepLink;
+                button.textContent = 'Modli\\'yi Aç';
+                button.className = 'button';
+                button.style.cssText = `
+                    display: inline-block;
+                    padding: 16px 32px;
+                    background: #6366f1;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 12px;
+                    margin-top: 16px;
+                    font-size: 18px;
+                    font-weight: 600;
+                    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+                `;
+                
+                document.querySelector('.container').appendChild(button);
+                
+                const spinner = document.querySelector('.spinner');
+                if (spinner) spinner.style.display = 'none';
             }} else {{
-                console.error('Tokens not found in hash');
+                console.error('Tokens not found');
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = 'Token\\'lar bulunamadı. Lütfen tekrar deneyin.';
+                document.getElementById('error').textContent = 'Token\\'lar bulunamadı.';
                 document.getElementById('message').style.display = 'none';
             }}
         }})();
