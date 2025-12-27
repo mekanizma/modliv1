@@ -24,18 +24,27 @@ const withAndroidNetworkSecurity = (config) => {
     ) || mainApplication.activity?.[0];
 
     if (mainActivity) {
-      // Check if intent filter already exists
+      // Check if modli:// deep link intent filter already exists
       const hasDeepLinkIntentFilter = mainActivity['intent-filter']?.some(
         (filter) => filter.data?.some(
           (data) => data.$['android:scheme'] === 'modli'
         )
       );
 
-      if (!hasDeepLinkIntentFilter) {
-        if (!mainActivity['intent-filter']) {
-          mainActivity['intent-filter'] = [];
-        }
+      // Check if HTTPS App Link intent filter already exists
+      const hasAppLinkIntentFilter = mainActivity['intent-filter']?.some(
+        (filter) => filter.data?.some(
+          (data) => data.$['android:scheme'] === 'https' &&
+                    data.$['android:host'] === 'modli.mekanizma.com'
+        )
+      );
 
+      if (!mainActivity['intent-filter']) {
+        mainActivity['intent-filter'] = [];
+      }
+
+      // Add modli:// deep link intent filter
+      if (!hasDeepLinkIntentFilter) {
         mainActivity['intent-filter'].push({
           action: [{ $: { 'android:name': 'android.intent.action.VIEW' } }],
           category: [
@@ -43,6 +52,28 @@ const withAndroidNetworkSecurity = (config) => {
             { $: { 'android:name': 'android.intent.category.BROWSABLE' } },
           ],
           data: [{ $: { 'android:scheme': 'modli' } }],
+        });
+      }
+
+      // Add Android App Link intent filter for https://modli.mekanizma.com
+      // This allows the app to open HTTPS URLs directly, bypassing Chrome Custom Tabs restrictions
+      if (!hasAppLinkIntentFilter) {
+        mainActivity['intent-filter'].push({
+          $: { 'android:autoVerify': 'true' },
+          action: [{ $: { 'android:name': 'android.intent.action.VIEW' } }],
+          category: [
+            { $: { 'android:name': 'android.intent.category.DEFAULT' } },
+            { $: { 'android:name': 'android.intent.category.BROWSABLE' } },
+          ],
+          data: [
+            {
+              $: {
+                'android:scheme': 'https',
+                'android:host': 'modli.mekanizma.com',
+                'android:pathPrefix': '/auth/callback'
+              }
+            }
+          ],
         });
       }
     }

@@ -95,12 +95,15 @@ function AppBootstrap({ onReady }: { onReady: () => void }) {
       }
 
       // OAuth callback deep link'lerini kontrol et - bunlar route değil, sadece callback
+      // Android App Links: https://modli.mekanizma.com/auth/callback da kabul ediliyor
       const isOAuthCallback = event.url.includes('modli://auth/callback') ||
                               event.url.includes('intent://auth/callback') ||
-                              (event.url.includes('modli://') && event.url.includes('access_token'));
+                              (event.url.includes('modli://') && event.url.includes('access_token')) ||
+                              (event.url.includes('https://modli.mekanizma.com/auth/callback'));
 
       console.log('🔍 Is OAuth callback?', isOAuthCallback);
       console.log('🔍 Contains modli://auth/callback?', event.url.includes('modli://auth/callback'));
+      console.log('🔍 Contains https://modli.mekanizma.com/auth/callback?', event.url.includes('https://modli.mekanizma.com/auth/callback'));
       console.log('🔍 Contains access_token?', event.url.includes('access_token'));
 
       if (isOAuthCallback) {

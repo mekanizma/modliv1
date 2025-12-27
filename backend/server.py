@@ -453,6 +453,35 @@ async def root():
     return {"message": "Modli API - Virtual Try-On Service"}
 
 
+@app.get("/.well-known/assetlinks.json")
+async def assetlinks():
+    """
+    Android App Links verification file.
+    This allows the Android app to handle https://modli.mekanizma.com URLs directly.
+
+    The SHA256 fingerprint needs to be updated with the actual app signing certificate.
+    To get the SHA256 fingerprint:
+    - Debug: keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android -keypass android
+    - Release: keytool -list -v -keystore your-release-key.keystore -alias your-key-alias
+
+    Copy the SHA256 fingerprint and add it to the sha256_cert_fingerprints array below.
+    """
+    return [
+        {
+            "relation": ["delegate_permission/common.handle_all_urls"],
+            "target": {
+                "namespace": "android_app",
+                "package_name": "com.mekanizma.modli",
+                "sha256_cert_fingerprints": [
+                    # Debug keystore SHA256 - to be replaced with actual certificate
+                    # This is a placeholder - add your actual SHA256 fingerprints here
+                    "14:6D:E9:83:C5:73:06:50:D8:EE:B9:95:2F:34:FC:64:16:A0:83:42:E6:1D:BE:A8:8A:04:96:B2:3F:CF:44:E5"
+                ]
+            }
+        }
+    ]
+
+
 @app.get("/auth/callback")
 async def oauth_callback(
     request: Request,
