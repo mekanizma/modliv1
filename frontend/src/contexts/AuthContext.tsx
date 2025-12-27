@@ -390,6 +390,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         options: {
           redirectTo: redirectUrl,
           skipBrowserRedirect: false,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+            // Google OAuth için gerekli scopes - email ve profile bilgileri için
+            scope: 'openid email profile',
+          },
         },
       });
 
