@@ -393,10 +393,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
+            // Google OAuth için gerekli scopes - email ve profile bilgileri için
+            // Supabase queryParams içinde scope parametresini kullanır
+            scope: 'openid email profile',
           },
-          // Google OAuth için gerekli scopes - email ve profile bilgileri için
-          // Supabase'in OAuth implementation'ında scopes'ları options içinde belirtiyoruz
-          scopes: 'openid email profile',
         },
       });
 

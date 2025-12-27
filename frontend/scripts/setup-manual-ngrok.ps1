@@ -99,3 +99,5 @@ Write-Host "2. Expo'yu LAN modunda başlatın: npm run start:lan" -ForegroundCol
 Write-Host "3. Ngrok'un verdiği HTTPS URL'ini kullanın" -ForegroundColor White
 
 
+
+

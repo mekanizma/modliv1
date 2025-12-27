@@ -38,3 +38,5 @@ npm run preview
 - API çağrıları `X-Admin-Token` header’ı ile backend’e iletilir.
 
 
+
+
