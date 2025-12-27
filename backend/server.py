@@ -518,21 +518,19 @@ async def oauth_callback(
     # Token'lar varsa deep link'e yönlendir
     if access_token and refresh_token:
         logger.info(f"OAuth callback successful - redirecting to app")
-        
-        # Normal deep link URL (iOS için)
-        deep_link_ios = f"modli://auth/callback?access_token={access_token}&refresh_token={refresh_token}&type=oauth"
-        
-        # Android Intent URL - Chrome Custom Tabs'ın desteklediği format
-        # Intent URL formatı: intent://host/path?params#Intent;scheme=SCHEME;package=PACKAGE;end
-        deep_link_android = f"intent://auth/callback?access_token={access_token}&refresh_token={refresh_token}&type=oauth#Intent;scheme=modli;package=com.mekanizma.modli;S.browser_fallback_url=https%3A%2F%2Fmodli.mekanizma.com;end"
-        
-        # Platform detection ile redirect yap
+
+        # Deep link URL - Tüm platformlar için aynı format
+        deep_link = f"modli://auth/callback?access_token={access_token}&refresh_token={refresh_token}&type=oauth"
+
+        # HTTP 302 redirect kullan - Chrome Custom Tabs için en güvenilir yöntem
+        # Meta refresh fallback ile birlikte
         html = f"""
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="refresh" content="0;url={deep_link}" />
     <title>Giriş Başarılı • Modli</title>
     <style>
         body {{
@@ -551,22 +549,6 @@ async def oauth_callback(
             padding: 20px;
             max-width: 400px;
         }}
-        .spinner {{
-            border: 3px solid rgba(99, 102, 241, 0.3);
-            border-top: 3px solid #6366f1;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }}
-        @keyframes spin {{
-            0% {{ transform: rotate(0deg); }}
-            100% {{ transform: rotate(360deg); }}
-        }}
-        .manual-open {{
-            margin-top: 20px;
-        }}
         .button {{
             display: inline-block;
             padding: 16px 32px;
@@ -582,60 +564,16 @@ async def oauth_callback(
         .button:active {{
             transform: scale(0.98);
         }}
-        #message {{
-            font-size: 16px;
-            margin-bottom: 12px;
-        }}
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="spinner" id="spinner"></div>
-        <p id="message">Giriş başarılı!</p>
-        <div class="manual-open" id="manual">
-            <p>Uygulamayı açmak için tıklayın:</p>
-            <a href="#" class="button" id="open-btn">Modli'yi Aç</a>
-        </div>
+        <p>Giriş başarılı! Uygulamaya yönlendiriliyorsunuz...</p>
+        <p style="margin-top: 20px; color: #9ca3af; font-size: 14px;">
+            Otomatik olarak açılmazsa:
+        </p>
+        <a href="{deep_link}" class="button">Modli'yi Aç</a>
     </div>
-    <script>
-        (function() {{
-            console.log('OAuth redirect - Platform detection');
-            const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-            const isAndroid = /android/i.test(userAgent);
-            
-            console.log('Platform:', isAndroid ? 'Android' : 'iOS');
-            
-            // Android'de normal modli:// deep link kullan (intent:// güvenilir değil)
-            // Tüm platformlarda normal modli:// deep link kullan
-            const deepLink = "{deep_link_ios}";
-            
-            console.log('Using deep link:', deepLink);
-            
-            // Butonu güncelle
-            const btn = document.getElementById('open-btn');
-            btn.href = deepLink;
-            
-            // Butona onclick event ekle (ekstra güvenlik için)
-            btn.onclick = function(e) {{
-                e.preventDefault();
-                console.log('Button clicked, opening deep link:', deepLink);
-                // Deep link'i aç
-                window.location.href = deepLink;
-                // Buton metnini güncelle
-                btn.textContent = 'Açılıyor...';
-                // 2 saniye sonra tekrar dene butonu göster
-                setTimeout(() => {{
-                    btn.textContent = 'Tekrar Dene';
-                }}, 2000);
-            }};
-            
-            // Spinner'ı kaldır ve butonu göster
-            setTimeout(() => {{
-                document.getElementById('spinner').style.display = 'none';
-                document.getElementById('manual').style.display = 'block';
-            }}, 300);
-        }})();
-    </script>
 </body>
 </html>
         """
@@ -735,10 +673,13 @@ async def oauth_callback(
             if (accessToken && refreshToken) {{
                 // Tüm platformlar için modli:// kullan
                 const deepLink = `modli://auth/callback?access_token=${{encodeURIComponent(accessToken)}}&refresh_token=${{encodeURIComponent(refreshToken)}}&type=oauth`;
-                
-                console.log('Deep link created');
-                
-                // Buton ekle (<a> tag kullan - Chrome Custom Tabs için gerekli)
+
+                console.log('Deep link created:', deepLink);
+
+                // Otomatik olarak deep link'i aç (meta refresh yerine JavaScript kullanıyoruz çünkü token'lar fragment'ta)
+                window.location.href = deepLink;
+
+                // Buton ekle - fallback için
                 document.getElementById('message').textContent = 'Giriş başarılı! Uygulamayı açın:';
                 
                 const button = document.createElement('a');
