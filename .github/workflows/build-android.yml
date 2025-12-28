@@ -1,0 +1,65 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - claude/fix-google-login-android-9KMhG
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+
+      - name: Prebuild Android
+        working-directory: ./frontend
+        run: npx expo prebuild --platform android --clean
+
+      - name: Build APK
+        working-directory: ./frontend/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: modli-android-debug
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+
+      - name: Create Release
+        id: create_release
+        if: github.ref == 'refs/heads/claude/fix-google-login-android-9KMhG'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: android-build-${{ github.run_number }}
+          name: Android Debug Build ${{ github.run_number }}
+          draft: false
+          prerelease: true
+          files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
