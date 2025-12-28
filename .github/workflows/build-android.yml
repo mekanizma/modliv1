@@ -4,62 +4,66 @@ on:
   push:
     branches:
       - claude/fix-google-login-android-9KMhG
+      - main
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: frontend
+
     steps:
-      - name: Checkout code
+      - name: 📥 Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
 
-      - name: Setup Java
+      - name: ☕ Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: 📦 Install dependencies
+        run: npm install
 
-      - name: Install dependencies
-        working-directory: ./frontend
-        run: npm ci
+      - name: 🔧 Setup Expo
+        run: npx expo install --fix
 
-      - name: Prebuild Android
-        working-directory: ./frontend
+      - name: 🏗️ Prebuild Android
         run: npx expo prebuild --platform android --clean
 
-      - name: Build APK
-        working-directory: ./frontend/android
-        run: |
-          chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+      - name: 🔑 Make Gradle executable
+        working-directory: frontend/android
+        run: chmod +x ./gradlew
 
-      - name: Upload APK
+      - name: 🏭 Build Debug APK
+        working-directory: frontend/android
+        run: ./gradlew assembleDebug --stacktrace
+
+      - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: modli-android-debug
+          name: modli-android-${{ github.run_number }}
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          if-no-files-found: error
+          retention-days: 90
 
-      - name: Create Release
-        id: create_release
-        if: github.ref == 'refs/heads/claude/fix-google-login-android-9KMhG'
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: android-build-${{ github.run_number }}
-          name: Android Debug Build ${{ github.run_number }}
-          draft: false
-          prerelease: true
-          files: frontend/android/app/build/outputs/apk/debug/app-debug.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: 📊 Build Summary
+        if: success()
+        run: |
+          echo "✅ APK Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📱 **Download APK:**" >> $GITHUB_STEP_SUMMARY
+          echo "- Go to Actions tab" >> $GITHUB_STEP_SUMMARY
+          echo "- Click on this workflow run" >> $GITHUB_STEP_SUMMARY
+          echo "- Download 'modli-android-${{ github.run_number }}' artifact" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "📦 APK Path: frontend/android/app/build/outputs/apk/debug/app-debug.apk" >> $GITHUB_STEP_SUMMARY
+
