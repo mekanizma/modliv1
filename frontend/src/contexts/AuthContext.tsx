@@ -3,8 +3,10 @@ import { supabase, isInvalidTokenError } from '../lib/supabase';
 import { Session, User } from '@supabase/supabase-js';
 import { registerPushToken, requestNotificationPermission } from '../lib/notifications';
 import * as WebBrowser from 'expo-web-browser';
-import * as Linking from 'expo-linking';
+import * as AuthSession from 'expo-auth-session';
 import { Platform } from 'react-native';
+
+WebBrowser.maybeCompleteAuthSession();
 
 interface UserProfile {
   id: string;
@@ -369,26 +371,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     oauthInProgressRef.current = true;
 
-    // 60 saniyelik timeout - deep link handler'a güveniyoruz
-    const oauthTimeout = setTimeout(() => {
-      if (oauthInProgressRef.current) {
-        console.warn('⏰ OAuth timeout after 60 seconds');
-        oauthInProgressRef.current = false;
-        setLoading(false);
-      }
-    }, 60000); // 60 saniye - kullanıcının OAuth'u tamamlaması için yeterli zaman
-
     try {
-      // Backend HTTPS callback kullan - backend deep link'e yönlendirecek
-      const redirectUrl = 'https://modli.mekanizma.com/auth/callback';
+      // EXPO AUTHSESSION ile düzgün redirect URL oluştur
+      const redirectUrl = AuthSession.makeRedirectUri({
+        scheme: 'modli',
+        path: 'auth/callback',
+      });
 
-      console.log('🔐 OAuth redirect URL:', redirectUrl, 'Provider:', provider);
+      console.log('🔐 AuthSession redirect URL:', redirectUrl);
+      console.log('🔐 Provider:', provider);
 
+      // Supabase OAuth URL'ini al
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
           redirectTo: redirectUrl,
-          skipBrowserRedirect: true, // ← Önemli: Browser'ı biz açacağız
+          skipBrowserRedirect: true,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -397,71 +395,95 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         },
       });
 
-      if (error) {
-        console.error('❌ OAuth error:', error);
-        clearTimeout(oauthTimeout);
+      if (error || !data?.url) {
+        console.error('❌ Supabase OAuth error:', error);
         oauthInProgressRef.current = false;
         setLoading(false);
-        return { error };
+        return { error: error || { message: 'OAuth URL alınamadı' } };
       }
 
-      // OAuth URL kontrolü
-      if (!data || !data.url) {
-        console.error('❌ OAuth URL not received');
-        clearTimeout(oauthTimeout);
+      console.log('🌐 Opening OAuth URL with WebBrowser.openAuthSessionAsync');
+      console.log('🌐 OAuth URL:', data.url);
+      console.log('🌐 Redirect URL:', redirectUrl);
+
+      // WebBrowser.openAuthSessionAsync kullan - DOĞRU YÖNTEM
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectUrl
+      );
+
+      console.log('🔍 WebBrowser result type:', result.type);
+      console.log('🔍 WebBrowser result:', JSON.stringify(result, null, 2));
+
+      if (result.type === 'success') {
+        console.log('✅ OAuth success! URL:', result.url);
+
+        // URL'den token'ları parse et
+        const url = result.url;
+        let accessToken: string | null = null;
+        let refreshToken: string | null = null;
+
+        // Hash veya query string'den parse et
+        try {
+          const urlObj = new URL(url);
+          const hash = urlObj.hash.substring(1);
+          const params = new URLSearchParams(hash || urlObj.search);
+
+          accessToken = params.get('access_token');
+          refreshToken = params.get('refresh_token');
+
+          console.log('🔑 Parsed tokens - access:', accessToken ? 'YES' : 'NO', 'refresh:', refreshToken ? 'YES' : 'NO');
+        } catch (parseError) {
+          console.error('❌ URL parse error:', parseError);
+
+          // Fallback: regex
+          const accessMatch = url.match(/access_token=([^&]*)/);
+          const refreshMatch = url.match(/refresh_token=([^&]*)/);
+          accessToken = accessMatch ? decodeURIComponent(accessMatch[1]) : null;
+          refreshToken = refreshMatch ? decodeURIComponent(refreshMatch[1]) : null;
+        }
+
+        if (accessToken && refreshToken) {
+          console.log('🔐 Setting session with tokens...');
+
+          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (sessionError) {
+            console.error('❌ setSession error:', sessionError);
+            oauthInProgressRef.current = false;
+            setLoading(false);
+            return { error: sessionError };
+          }
+
+          console.log('✅ Session set successfully!');
+          oauthInProgressRef.current = false;
+          setLoading(false);
+          return { error: null };
+        } else {
+          console.error('❌ Tokens not found in URL');
+          oauthInProgressRef.current = false;
+          setLoading(false);
+          return { error: { message: 'Token bulunamadı' } };
+        }
+      } else if (result.type === 'cancel') {
+        console.log('⚠️ User cancelled OAuth');
         oauthInProgressRef.current = false;
         setLoading(false);
-        return {
-          error: {
-            message: 'OAuth URL alınamadı. Lütfen tekrar deneyin.',
-            code: 'OAUTH_URL_MISSING'
-          }
-        };
-      }
-
-      // System browser'da aç - daha güvenilir!
-      console.log('🌐 Opening OAuth URL in system browser:', data.url);
-      console.log('📱 Platform:', Platform.OS);
-
-      try {
-        // System browser ile aç (Custom Tabs değil!)
-        // Bu daha basit ve güvenilir - deep link kesinlikle çalışır
-        await Linking.openURL(data.url);
-
-        console.log('✅ Browser opened successfully');
-        console.log('⏳ Waiting for deep link callback...');
-        console.log('📲 Deep link handler will catch: modli://auth/callback?...');
-
-        // Deep link handler'a güveniyoruz
-        // Kullanıcı OAuth'u tamamladığında:
-        // 1. Backend modli:// deep link'e yönlendirir
-        // 2. _layout.tsx handleDeepLink() çalışır
-        // 3. Token'lar parse edilir ve session set edilir
-        // 4. oauthInProgressRef.current = false olur
-        // 5. Loading durur
-
-        // Hata döndürmüyoruz - deep link handler halledecek
-        return { error: null };
-
-      } catch (browserError: any) {
-        console.error('❌ Failed to open browser:', browserError);
-        clearTimeout(oauthTimeout);
+        return { error: { message: 'Giriş iptal edildi' } };
+      } else {
+        console.error('❌ OAuth failed:', result.type);
         oauthInProgressRef.current = false;
         setLoading(false);
-
-        return {
-          error: {
-            message: 'Tarayıcı açılamadı. Lütfen tekrar deneyin.',
-            code: 'BROWSER_OPEN_FAILED'
-          }
-        };
+        return { error: { message: 'OAuth başarısız oldu' } };
       }
     } catch (err: any) {
       console.error('❌ OAuth exception:', err);
-      clearTimeout(oauthTimeout);
       oauthInProgressRef.current = false;
       setLoading(false);
-      return { error: { message: err.message || 'Beklenmeyen bir hata oluştu' } };
+      return { error: { message: err.message || 'OAuth hatası' } };
     }
   };
 
