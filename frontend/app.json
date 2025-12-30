@@ -96,7 +96,8 @@
       ],
       "expo-notifications",
       "./plugins/withAndroidNetworkSecurity",
-      "./plugins/withAndroidSplashScreen"
+      "./plugins/withAndroidSplashScreen",
+      "./plugins/withGradleProperties"
     ],
     "experiments": {
       "typedRoutes": true
