@@ -372,21 +372,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     oauthInProgressRef.current = true;
 
     try {
-      // EXPO AUTHSESSION ile düzgün redirect URL oluştur
-      const redirectUrl = AuthSession.makeRedirectUri({
-        scheme: 'modli',
-        path: 'auth/callback',
-      });
-
-      console.log('🔐 AuthSession redirect URL:', redirectUrl);
-      console.log('🔐 Provider:', provider);
-
       // Supabase OAuth URL'ini al
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider,
         options: {
-          redirectTo: redirectUrl,
-          // skipBrowserRedirect: false - Supabase otomatik handle etsin
+          skipBrowserRedirect: true,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -402,33 +392,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { error: error || { message: 'OAuth URL alınamadı' } };
       }
 
-      console.log('🌐 Opening OAuth URL with WebBrowser.openAuthSessionAsync');
+      console.log('🌐 Starting OAuth with AuthSession.startAsync');
       console.log('🌐 OAuth URL:', data.url);
-      console.log('🌐 Redirect URL:', redirectUrl);
 
-      // WebBrowser.openAuthSessionAsync kullan - DOĞRU YÖNTEM
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        redirectUrl
-      );
+      // EXPO AUTHSESSION.startAsync kullan - bu DOĞRU yöntem!
+      // WebBrowser değil, AuthSession kullanmalıyız
+      const result = await AuthSession.startAsync({
+        authUrl: data.url,
+        returnUrl: AuthSession.makeRedirectUri({
+          scheme: 'modli',
+        }),
+      });
 
-      console.log('🔍 WebBrowser result type:', result.type);
+      console.log('🔍 AuthSession result type:', result.type);
 
       if (result.type === 'success') {
-        console.log('✅ OAuth success! Redirect URL:', result.url);
+        console.log('✅ OAuth success! Result params:', result.params);
 
-        // Supabase auth listener otomatik session set edecek
-        // Sadece başarılı olduğunu bildir
-        console.log('✅ Waiting for Supabase to set session...');
+        // URL'den token'ları parse et
+        const { params } = result;
+        const accessToken = params.access_token;
+        const refreshToken = params.refresh_token;
 
-        // Loading durumunu kapatma - auth listener halledecek
-        // oauthInProgressRef.current = false olacak SIGNED_IN event'inde
-        return { error: null };
+        if (accessToken && refreshToken) {
+          console.log('🔐 Setting session with tokens...');
+
+          const { error: sessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (sessionError) {
+            console.error('❌ setSession error:', sessionError);
+            oauthInProgressRef.current = false;
+            setLoading(false);
+            return { error: sessionError };
+          }
+
+          console.log('✅ Session set successfully!');
+          oauthInProgressRef.current = false;
+          setLoading(false);
+          return { error: null };
+        } else {
+          console.error('❌ Tokens not found in result');
+          oauthInProgressRef.current = false;
+          setLoading(false);
+          return { error: { message: 'Token bulunamadı' } };
+        }
       } else if (result.type === 'cancel') {
         console.log('⚠️ User cancelled OAuth');
         oauthInProgressRef.current = false;
         setLoading(false);
         return { error: { message: 'Giriş iptal edildi' } };
+      } else if (result.type === 'error') {
+        console.error('❌ OAuth error:', result.error);
+        oauthInProgressRef.current = false;
+        setLoading(false);
+        return { error: { message: result.error || 'OAuth hatası' } };
       } else {
         console.error('❌ OAuth failed:', result.type);
         oauthInProgressRef.current = false;
